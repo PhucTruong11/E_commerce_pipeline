@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1140" viewBox="0 0 1600 1140" role="img" aria-labelledby="title desc">
+  <title id="title">Xóm E-Com — from source to analytics</title>
+  <desc id="desc">Planned batch ELT architecture. A dataset snapshot seeds simulated PostgreSQL. dlt archives immutable Parquet batches in MinIO. A manifest-aware loader applies Bronze in DuckDB; dbt builds Silver and Gold. Quality checks gate a separate serving release read by Streamlit and an optional Text-to-SQL service. An existing Airflow deployment or standalone Docker Compose orchestrates the pipeline. Solid arrows indicate data, dashed arrows orchestration.</desc>
+  <defs>
+    <marker id="data-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5 L1 9Z" fill="#6ddcc4"/></marker>
+    <marker id="control-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5 L1 9Z" fill="#b8a5f5"/></marker>
+    <style>
+      text { font-family: 'Segoe UI', Arial, sans-serif; }
+      .eyebrow { font-size: 15px; font-weight: 700; letter-spacing: 2px; fill: #8eabc5; }
+      .title { font-size: 42px; font-weight: 700; fill: #f1f5fc; }
+      .subtitle { font-size: 21px; fill: #a8b7cd; }
+      .label { font-size: 15px; font-weight: 700; letter-spacing: 1.1px; fill: #a8b7cd; }
+      .node-title { font-size: 27px; font-weight: 700; fill: #edf4ff; }
+      .body { font-size: 20px; fill: #c0cee0; }
+      .small { font-size: 17px; fill: #99acc4; }
+      .data { fill: none; stroke: #6ddcc4; stroke-width: 3; marker-end: url(#data-arrow); }
+      .control { fill: none; stroke: #b8a5f5; stroke-width: 2.5; stroke-dasharray: 7 7; marker-end: url(#control-arrow); }
+    </style>
+  </defs>
+  <rect width="1600" height="1140" rx="28" fill="#0d1422"/>
+  <text x="52" y="47" class="eyebrow">XÓM E-COM / PIPELINE BLUEPRINT</text>
+  <text x="52" y="103" class="title">From source to analytics</text>
+  <text x="52" y="137" class="subtitle">Batch ELT · existing Airflow or standalone Docker Compose · independent serving</text>
+  <rect x="1324" y="47" width="224" height="40" rx="20" fill="#29314b" stroke="#55617f"/>
+  <text x="1436" y="73" text-anchor="middle" class="label" fill="#d9dfff">PLANNED / NOT LIVE</text>
+
+  <rect x="500" y="178" width="1048" height="93" rx="18" fill="#1c1b34" stroke="#625884" stroke-width="1.5"/>
+  <text x="524" y="211" class="label" style="fill:#c6b7fa">APACHE AIRFLOW / DAG ORCHESTRATION</text>
+  <text x="524" y="244" class="body">Extract → commit raw → load → dbt build + tests → publish</text>
+  <text x="52" y="211" class="label">DEVELOPMENT / CI</text>
+  <text x="52" y="242" class="small">Docker Compose · GitHub Actions</text>
+  <path d="M700 271 V313" class="control"/>
+  <path d="M1548 225 H1572 V612 H1549" class="control"/>
+  <text x="1114" y="299" class="small">Schedules · retries · writer pool + lock</text>
+
+  <rect x="52" y="318" width="400" height="172" rx="18" fill="#17273a" stroke="#517697" stroke-width="1.5"/>
+  <text x="78" y="351" class="label">01 / SOURCE</text>
+  <text x="78" y="393" class="node-title">PostgreSQL</text>
+  <text x="78" y="427" class="body">Simulated OLTP · 4 source tables</text>
+  <text x="78" y="463" class="small">Seeded from Xóm Data snapshot</text>
+
+  <rect x="500" y="318" width="400" height="172" rx="18" fill="#142d2b" stroke="#4d8e7c" stroke-width="1.5"/>
+  <text x="526" y="351" class="label">02 / INGESTION</text>
+  <text x="526" y="393" class="node-title">dlt + Python</text>
+  <text x="526" y="427" class="body">Snapshot + incremental batches</text>
+  <text x="526" y="463" class="small">Change cursor · source version</text>
+
+  <rect x="948" y="318" width="600" height="172" rx="18" fill="#142d2b" stroke="#4d8e7c" stroke-width="1.5"/>
+  <text x="974" y="351" class="label">03 / RAW ARCHIVE</text>
+  <text x="974" y="393" class="node-title">MinIO / S3 API</text>
+  <text x="974" y="427" class="body">Immutable Parquet + schema + manifest</text>
+  <text x="974" y="463" class="small">Checksum · batch ID · completion marker</text>
+  <path d="M452 405 H498" class="data"/>
+  <path d="M900 405 H946" class="data"/>
+
+  <path d="M1248 490 V537 H28 V707 H74" class="data"/>
+  <rect x="551" y="521" width="498" height="32" rx="10" fill="#0d1422"/>
+  <text x="800" y="544" class="small" text-anchor="middle">Load committed manifests · replay without source</text>
+
+  <rect x="52" y="580" width="1496" height="232" rx="22" fill="#141f30" stroke="#3c536d" stroke-width="1.5"/>
+  <text x="76" y="617" class="label">04 / DUCKDB BUILD + DBT</text>
+  <text x="1524" y="617" class="small" text-anchor="end">Quality gate before release</text>
+
+  <rect x="76" y="648" width="326" height="129" rx="16" fill="#17352f" stroke="#4e927d" stroke-width="1.5"/>
+  <text x="100" y="688" class="node-title">Bronze</text>
+  <text x="100" y="721" class="body">Source state + batch ledger</text>
+  <text x="100" y="752" class="small">Snapshot / versioned upsert</text>
+
+  <rect x="450" y="648" width="326" height="129" rx="16" fill="#263046" stroke="#7a8ca9" stroke-width="1.5"/>
+  <text x="474" y="688" class="node-title">Silver</text>
+  <text x="474" y="721" class="body">Staging + intermediate</text>
+  <text x="474" y="752" class="small">Types · keys · joins · order grain</text>
+
+  <rect x="824" y="648" width="326" height="129" rx="16" fill="#332f22" stroke="#b5a05d" stroke-width="1.5"/>
+  <text x="848" y="688" class="node-title">Gold</text>
+  <text x="848" y="721" class="body">Dimensions · facts · marts</text>
+  <text x="848" y="752" class="small">15 business questions</text>
+
+  <rect x="1198" y="648" width="326" height="129" rx="16" fill="#242b4a" stroke="#8c9fe9" stroke-width="1.5"/>
+  <text x="1222" y="688" class="node-title">Publish</text>
+  <text x="1222" y="721" class="body">Approved Gold release</text>
+  <text x="1222" y="752" class="small">Versioned file · atomic pointer</text>
+  <path d="M402 712 H448" class="data"/>
+  <path d="M776 712 H822" class="data"/>
+  <path d="M1150 712 H1196" class="data"/>
+
+  <path d="M1361 777 V856 H402 V903" class="data"/>
+  <path d="M1174 856 V903" class="data"/>
+  <text x="790" y="842" class="small" text-anchor="middle">Read-only serving · separate from build database</text>
+
+  <rect x="52" y="905" width="700" height="132" rx="18" fill="#17273a" stroke="#517697" stroke-width="1.5"/>
+  <text x="78" y="940" class="label">05 / BUSINESS ANALYTICS</text>
+  <text x="78" y="979" class="node-title">Streamlit dashboard</text>
+  <text x="78" y="1013" class="body">Profitability · discounts · markets · customers</text>
+
+  <rect x="800" y="905" width="748" height="132" rx="18" fill="#201e35" stroke="#776aab" stroke-width="1.5"/>
+  <text x="826" y="940" class="label">OPTIONAL / AFTER MVP</text>
+  <text x="826" y="979" class="node-title">Text-to-SQL · Gemini + SQLGlot</text>
+  <text x="826" y="1013" class="body">Gold context → AST allowlist → sandboxed executor</text>
+
+  <path d="M52 1084 H105" class="data"/>
+  <text x="118" y="1091" class="small">Data / model dependency</text>
+  <path d="M452 1084 H505" class="control"/>
+  <text x="518" y="1091" class="small">Execution / control</text>
+  <text x="1548" y="1091" text-anchor="end" class="small">Batch incremental ≠ log-based CDC</text>
+</svg>
