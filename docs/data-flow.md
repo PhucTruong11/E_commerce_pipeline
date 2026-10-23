@@ -1,95 +1,35 @@
-# Data flow và batch contract
+# Data flow và contract nguồn / warehouse
 
-> Contract đề xuất cho implementation. Chưa có code thực thi các trạng thái bên dưới.
+> Plan mới: PostgreSQL nguồn, DuckDB analytics, dbt Core + dbt-duckdb. Chưa triển khai.
 
 ![Data flow](diagrams/data-flow.svg)
 
-## 1. Bootstrap và mô phỏng nguồn
+## 1. CSV → PostgreSQL bootstrap
 
-Snapshot được lấy qua hình thức truy cập được Xóm Data cho phép, rồi nạp vào Postgres local. Không mặc định có public CSV download hoặc quyền CDC trên nguồn bên ngoài.
+Validate đủ 4 CSV, schema/type/keys/FK, giữ bytes gốc và checksum. Bootstrap cả 4 nguồn trong một transaction vào e_commerce và ghi bootstrap_id/inventory. Sau initial load, cùng CSV thì skip bootstrap; không ghi đè các giao dịch được tạo sau đó. CSV khác phải qua explicit reset/new-baseline, không tự replace nguồn.
 
-Giữ tên cột nghiệp vụ của 4 bảng. Simulator bổ sung metadata có namespace riêng: `source_updated_at`, `source_version`, `is_deleted` nếu sau này có soft delete. Việc update phải thay đổi timestamp/version trong cùng transaction nguồn. Batch mô phỏng được commit trước khi extract để kiểm soát rõ boundary.
+## 2. PostgreSQL → candidate DuckDB
 
-- Initial load: full snapshot cả 4 bảng.
-- Các lần sau: sales incremental theo `source_updated_at`; dimensions full snapshot có version riêng.
-- Cursor dùng thời gian thay đổi ở simulator, không dùng `order_date` để phát hiện sửa đơn cũ.
-- Nếu chỉ có snapshot tĩnh: chạy full snapshot và nói rõ chưa có incremental từ nguồn thật.
+Extractor dùng ecom_reader, kiểm tra đúng database/user, mở một REPEATABLE READ READ ONLY transaction cho cả 4 bảng. Đọc theo batch, giữ consistency khi nguồn có thay đổi đồng thời.
 
-## 2. Extract → raw archive
+Tạo candidate file mới cho mỗi extraction_id. Nạp bronze.ecom_sales/customer/product/region với metadata extraction_id, source table và extracted_at. Kiểm tra row count, keys và tổng tiền cùng snapshot nguồn; lỗi thì candidate không được phục vụ.
 
-Ví dụ object keys; batch date là ngày extract, không phải ngày mua hàng:
+Không dùng checksum CSV làm identity của snapshot PG sau khi OLTP thay đổi. bootstrap_id nhận diện đầu vào ban đầu; extraction_id nhận diện lần đọc nguồn; analysis_run_id gắn code/parameters/tests; release_id nhận diện Gold đã duyệt.
 
-```text
-raw/e_commerce/ecom_sales/extract_date=2026-10-19/batch_id=<id>/
-  part-00001.parquet
-  schema.json
-  manifest.json
-  _SUCCESS
-```
+## 3. dbt và insight
 
-`manifest.json` là metadata được lưu trong raw, không phải file cấu hình chứa secrets.
+Đóng writer DuckDB của loader trước khi gọi dbt. dbt target là candidate path cố định; không query PG trực tiếp trong models. Bronze → staging → intermediate → marts, full rebuild ban đầu.
 
-| Trường | Ý nghĩa |
-| --- | --- |
-| `batch_id`, `run_id`, `table`, `mode` | Định danh; mode là `snapshot` hoặc `incremental` |
-| `schema_version`, `extracted_at_utc` | Phiên bản schema và thời điểm extract |
-| `cursor_start`, `cursor_end`, `overlap` | Khoảng extract được ghi lại; snapshot có thể dùng null |
-| `files[]` | Object key, số dòng, byte size và SHA-256 mỗi file |
-| `row_count`, `schema_hash` | Đối soát payload và schema |
-| `source_snapshot_id` | Nhận diện snapshot nguồn nếu có |
+Giữ grain row_id cho lines, order_key đã kiểm chứng cho orders. Reconcile totals và tests nghiệp vụ trước khi xuất SQL/report. Cùng source nhưng SQL thay đổi vẫn build lại.
 
-Trình tự commit: ghi payload → xác minh checksum/count → ghi manifest → ghi `_SUCCESS` cuối cùng. Object storage không có transaction đa file ở đây; `_SUCCESS` là commit marker theo protocol ứng dụng. Loader chỉ nhận manifest có marker và các file đã kiểm tra. Batch có `_SUCCESS` là bất biến; không append thêm file vào batch đó.
+## 4. Publish
 
-## 3. Hai checkpoint độc lập
+Xuất chỉ Gold được phép sang release file mới; loại raw/PII. Đóng mọi writer, mở read-only để kiểm tra. Metadata gồm extraction_id, code revision/hash, as_of_date, test status và release_id.
 
-**Extraction checkpoint** chỉ tiến sau khi raw batch committed. State dlt và checkpoint cần volume bền vững; lưu metadata recovery để truy ra boundary từ manifest khi mất state. Nếu crash sau raw commit nhưng trước checkpoint, có thể extract lại; downstream vẫn phải idempotent ở mức khóa/phiên bản.
+Atomic switch active pointer trên cùng filesystem sau khi pass; giữ release cũ để rollback. Readers không mở build file; chọn một immutable release cho toàn request. dbt build không phải transaction toàn pipeline, nên candidate/pointer là ranh giới publication.
 
-**Warehouse checkpoint** là ledger các batch đã apply. Nếu Bronze/dbt lỗi, đọc lại raw; không extract lại từ Postgres chỉ vì downstream thất bại.
+## 5. Retry và restore
 
-MVP dùng khoảng đọc chồng lấn có cấu hình. Overlap chỉ giảm rủi ro trong giới hạn đã chọn; không bảo đảm bắt được mọi late arrival. Với nguồn thực thay đổi liên tục cần thêm contract timestamp/transaction boundary hoặc cơ chế CDC phù hợp.
+Full snapshot retry dựng candidate mới, không append vào serving. Trước pointer switch thất bại thì release cũ vẫn active. Khi mất build, lấy lại nguồn hiện hành; muốn khôi phục đúng lịch sử phải còn build/raw snapshot hoặc PG backup/change journal của thời điểm đó.
 
-## 4. Raw → Bronze
-
-Trong một transaction DuckDB cho từng batch:
-
-1. Xác minh manifest, marker và checksum; từ chối schema không tương thích.
-2. Kiểm tra ledger theo `(table, batch_id)`; batch đã apply thì bỏ qua có log.
-3. Đọc các file trong manifest vào vùng tạm.
-4. Kiểm tra khóa, phiên bản và kiểu dữ liệu.
-5. Apply snapshot hoặc upsert; ghi ledger trong cùng transaction rồi commit.
-
-**Sales incremental:** khóa ứng viên `row_id` phải vượt qua profiling trước khi dùng. Dùng `source_version` làm thứ tự thay đổi cùng khóa; không chọn winner bằng thời điểm replay. Cùng khóa/version nhưng khác payload phải fail/quarantine thay vì chọn ngẫu nhiên. Phiên bản cũ không được ghi đè mới.
-
-**Dimension snapshot:** thay thế current snapshot như một đơn vị; không union tất cả batch vì sẽ nhân bản dimension. Archive vẫn giữ snapshot cũ. Với sales snapshot mới hoàn chỉnh, dùng replace có kiểm tra thay vì upsert để phản ánh đúng tập bản ghi của snapshot.
-
-Hard delete sales không được suy ra từ incremental batch vắng bản ghi. Tính năng tombstone/soft delete sẽ cần contract riêng trước khi bật.
-
-## 5. Bronze → Silver → Gold
-
-Airflow gọi runtime `build_and_publish` sau khi raw batch đã commit. Trong cùng task, runtime giữ writer lock từ load Bronze qua dbt build, quality gate đến publish. MVP rebuild các model phụ thuộc để sửa đổi đơn cũ được phản ánh cả order, customer RFM và basket, không chỉ fact line.
-
-Gate tối thiểu: khóa hợp lệ, relationships sau xử lý dimension, kiểm tra discount, không fan-out sau join, tổng sales/profit khớp và không trộn đơn có header mâu thuẫn. Bản Gold lỗi có thể tồn tại trong vùng build nhưng không được phục vụ cho người dùng.
-
-## 6. Publish → serving
-
-1. Hoàn tất `dbt build` và đối soát.
-2. Xuất Gold đã duyệt sang file release riêng; không include Bronze, customer PII hoặc secret.
-3. Đóng/flushing tất cả writer; kiểm tra release bằng read-only connection.
-4. Ghi `release_id`, raw batch set, dbt commit/hash, `as_of_date`, test status và thời điểm publish.
-5. Atomic replace pointer để người đọc mới chọn release mới.
-6. Streamlit/API đóng kết nối cũ trước khi mở đường dẫn release mới; đang lỗi thì tiếp tục dùng release cũ.
-
-Build file và ledger nằm trên volume bền vững. Airflow dùng metadata database riêng; không dùng Postgres source làm chung database nghiệp vụ và scheduler. Serving pointer không được cập nhật nếu bất cứ bước kiểm tra nào thất bại.
-
-Giữa các Airflow tasks chỉ truyền batch ID, manifest URI và release ID qua XCom; không truyền DataFrame hoặc file DuckDB. `build_and_publish` retry phải đọc lại đúng manifest set đã chốt, không chọn raw mới nhất một cách ngầm định.
-
-## 7. Replay và backfill
-
-- Replay chọn tập manifest đã commit và schema tương ứng; không glob toàn bộ bucket.
-- Khôi phục snapshot nền trước, rồi apply incremental batches theo version/boundary đã ghi.
-- Dimension dùng snapshot hoàn chỉnh được chọn cho lần rebuild; MVP không tuyên bố join lịch sử SCD2.
-- Dựng vào warehouse mới với ledger riêng, dùng cùng `as_of_date`, rồi so sánh khóa/count/sales/profit với release chuẩn.
-- Backfill không tự thay đổi extraction checkpoint của luồng đang chạy.
-- Chỉ publish kết quả rebuild khi gate đạt; giữ lineage tới các raw batch gốc.
-
-Định nghĩa idempotent: cùng input và tham số tạo ra cùng tập bản ghi nghiệp vụ và metric. Run timestamp hoặc đường dẫn artifact có thể khác.
+CDC là chặng sau: [CDC plan](cdc-plan.md). Không dùng watermark giả cho CSV tĩnh và không coi source snapshot là lịch sử thay đổi.

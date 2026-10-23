@@ -1,102 +1,104 @@
-# Cấu trúc repository
+# Cây thư mục initial scaffold
 
-Đây là **cây thư mục đã tạo** cho giai đoạn tài liệu/scaffold. `.gitkeep` chỉ giữ thư mục trống trong Git. Chưa có source code, deployment configs hoặc lệnh chạy pipeline.
+Mục tiêu: học tech và commercial analytics với **PostgreSQL nguồn → DuckDB → dbt → SQL/insight**. Cây bên dưới đã tạo; thư mục chưa có code được giữ bằng .gitkeep. Chỉ parser CSV hiện có code thực thi, chưa có pipeline hoặc môi trường cài mới.
 
 ```text
 e_commerce/
 ├── README.md
+├── AGENTS.md
 ├── .gitignore
 ├── .dockerignore
+├── .github/workflows/              # CI sẽ thêm sau
+├── config/
+│   └── README.md                   # quy ước env/profile riêng
+├── data/
+│   ├── README.md
+│   ├── bootstrap/                  # 4 CSV local, không commit
+│   ├── warehouse/                  # build/candidate DuckDB local
+│   └── serving/                    # Gold-only releases local
 ├── docs/
 │   ├── architecture.md
-│   ├── airflow-docker.md
-│   ├── ingestion-plan.md
 │   ├── data-flow.md
 │   ├── data-modeling.md
-│   ├── context.md
-│   ├── project-structure.md
-│   ├── roadmap.md
+│   ├── context.md                  # 15 câu hỏi và metric contracts
+│   ├── ingestion-plan.md
+│   ├── docker-plan.md
+│   ├── airflow-docker.md
 │   ├── operations.md
+│   ├── roadmap.md
+│   ├── cdc-plan.md                 # mở rộng sau snapshot/insight
+│   ├── project-structure.md
+│   ├── plans/2026-10-23-day-01.md  # bài học, cách làm, mẫu và checkpoint
+│   ├── platform-check-2026-10-22.md # audit lịch sử được giữ
 │   └── diagrams/
 │       ├── data-flow.svg
 │       └── model-flow.svg
 ├── infra/
-│   ├── postgres/init/.gitkeep
-│   └── minio/.gitkeep
-├── ingestion/
-│   ├── sources/.gitkeep
-│   ├── raw/.gitkeep
-│   └── loaders/.gitkeep
-├── orchestration/
-│   ├── dags/.gitkeep
-│   ├── task_groups/.gitkeep
-│   └── resources/.gitkeep
-├── warehouse/
-│   ├── models/
-│   │   ├── sources/.gitkeep
-│   │   ├── staging/.gitkeep
-│   │   ├── intermediate/.gitkeep
-│   │   └── marts/
-│   │       ├── core/.gitkeep
-│   │       └── analytics/.gitkeep
-│   ├── analyses/.gitkeep
-│   ├── macros/.gitkeep
-│   ├── seeds/
-│   │   ├── .gitkeep
-│   │   └── reference/.gitkeep
-│   └── tests/.gitkeep
-├── serving/
-│   ├── dashboard/.gitkeep
-│   └── text_to_sql/.gitkeep
-├── scripts/
-│   ├── bootstrap/.gitkeep
-│   ├── simulate/.gitkeep
-│   └── replay/.gitkeep
-├── tests/
-│   ├── unit/.gitkeep
-│   ├── integration/.gitkeep
-│   └── fixtures/
-│       ├── .gitkeep
-│       └── synthetic/.gitkeep
-├── data/
 │   ├── README.md
-│   ├── bootstrap/.gitkeep
-│   ├── warehouse/.gitkeep
-│   └── serving/.gitkeep
-└── .github/
-    └── workflows/.gitkeep
+│   ├── docker/                     # runtime Dockerfile sẽ viết
+│   ├── airflow/                    # overlay/mount DAG vào platform
+│   └── postgres/init/              # source DDL sẽ viết
+├── ingestion/
+│   ├── sources/
+│   │   └── csv_contracts.py         # parser được giữ
+│   └── loaders/                    # PG snapshot → DuckDB Bronze
+├── scripts/
+│   ├── bootstrap/                  # CSV → PostgreSQL
+│   └── simulate/                   # OLTP lab ở chặng sau
+├── orchestration/
+│   ├── dags/                       # DAG BudgetDockerOperator
+│   └── resources/                  # helpers cấu hình task
+├── warehouse/                      # dbt project, chưa có models
+│   ├── models/
+│   │   ├── sources/                # Bronze source YAML
+│   │   ├── staging/
+│   │   ├── intermediate/
+│   │   └── marts/
+│   │       ├── core/               # dimensions, facts
+│   │       └── analytics/          # monthly, product, RFM; basket sau
+│   ├── analyses/                   # SQL Q01–Q15
+│   ├── macros/
+│   ├── seeds/reference/            # reference nhỏ đã rà soát
+│   └── tests/                      # dbt data tests
+├── analysis/
+│   ├── README.md
+│   └── reports/                    # báo cáo đã rà soát, không PII
+├── serving/dashboard/              # tùy chọn sau insight
+└── tests/
+    ├── unit/
+    ├── integration/
+    └── fixtures/synthetic/         # chỉ dữ liệu tự tạo
 ```
 
-## Ranh giới trách nhiệm
+.git và .local recovery được bỏ khỏi sơ đồ. data/local-checks giữ audit JSON local trước đây, được ignore. Không đụng dữ liệu hoặc hạ tầng của dự án khác.
 
-| Đường dẫn | Nội dung sẽ triển khai |
+## File sẽ viết khi implementation
+
+| File dự kiến | Vai trò |
 | --- | --- |
-| `infra/` | Init SQL, bucket bootstrap; Compose đặt ở root khi có implementation |
-| `ingestion/sources/` | dlt source và cấu hình bảng/cursor |
-| `ingestion/raw/` | Manifest, checksum, commit protocol |
-| `ingestion/loaders/` | Raw → Bronze, snapshot/upsert và batch ledger |
-| `orchestration/dags/` | DAG mỏng của dự án, mount vào DAG folder của Airflow |
-| `orchestration/task_groups/` | Task factories/groups khi cần tách, không chứa business logic |
-| `orchestration/resources/` | Connection IDs, paths và runtime configuration helpers |
-| `warehouse/models/sources/` | dbt source YAML cho Bronze |
-| `warehouse/models/staging/` | Cast, naming và chuẩn hóa Silver |
-| `warehouse/models/intermediate/` | Join, order roll-up, order history và pairs |
-| `warehouse/models/marts/core/` | Dimensions và facts Gold |
-| `warehouse/models/marts/analytics/` | RFM, product, monthly, discount và basket marts |
-| `warehouse/analyses/` | SQL trả lời Q01–Q15 |
-| `warehouse/tests/` | dbt singular data tests; generic tests nằm trong YAML/macro khi triển khai |
-| `warehouse/seeds/reference/` | CSV reference nhỏ đã rà soát; ngoại lệ có chủ đích trong ignore rules |
-| `serving/` | Dashboard, schema context và executor được giới hạn |
-| `scripts/` | Bootstrap nguồn, simulator và replay entry points |
-| `tests/` | Python tests, contract/integration tests và fixtures giả lập |
-| `tests/fixtures/synthetic/` | Chỉ dữ liệu tự tạo; không lấy customer/source records đưa vào Git |
-| `data/` | Artifacts runtime local; payload không được commit |
-| `.github/workflows/` | CI trên fixtures; `.gitkeep` không phải workflow |
+| scripts/bootstrap/load_csv.py | Bootstrap đủ 4 bảng trong transaction |
+| ingestion/loaders/postgres_to_duckdb.py | Consistent extraction bằng source reader |
+| scripts/run_pipeline.py | Guard, file lock, dbt, reconciliation và publish |
+| infra/postgres/init/010_source_schema.sql | Source/meta DDL |
+| warehouse/dbt_project.yml | Project dbt Core + dbt-duckdb |
+| warehouse/models/sources/bronze.yml | 4 nguồn Bronze trong DuckDB |
+| warehouse/models/staging/stg_*.sql | Typed views |
+| warehouse/models/marts/core/fct_*.sql | Facts line/order đúng grain |
+| warehouse/models/marts/analytics/mart_*.sql | Monthly/product/RFM |
+| requirements.in + requirements.lock.txt | Dependencies ghim sau kiểm chứng |
+| infra/docker/runtime.Dockerfile | Runtime riêng của project |
+| config/.env.example + config/profiles.example.yml | Mẫu cấu hình không chứa secrets |
+| orchestration/dags/ecom_analytics.py | DAG gọi registered operator |
+| compose.standalone.yaml | PostgreSQL + runtime cho người clone |
 
-## Các file chỉ tạo khi có implementation
+Chưa tạo các file cấu hình/entrypoints rỗng có tên như đã chạy được. Không cài môi trường, build image, tạo DB/roles hoặc deploy DAG trong lượt scaffold này.
 
-`pyproject.toml`, dependency lockfile, `.env.example`, `compose.yaml` (standalone), `compose.services.yaml` (source/MinIO/runtime cho Airflow có sẵn), Dockerfiles cho runtime/Airflow/dashboard, `Makefile`, `warehouse/dbt_project.yml`, `warehouse/profiles.example.yml`, Airflow DAG và GitHub Actions YAML. `.dockerignore` đã có để ngăn dữ liệu/secrets đi vào build context.
+warehouse/analyses là SQL phục vụ Q01–Q15; dbt compile chúng nhưng dbt build không tự chạy analyses. analysis/reports giữ diễn giải kinh doanh, khác artifacts chứa dữ liệu local trong reports/ hoặc data/.
 
-Không tạo các file cấu hình trống để gây hiểu nhầm rằng hệ thống đã chạy được. Khi thêm implementation, cập nhật cây thư mục và quickstart cùng lúc.
+dbt schema mapping cần kiểm chứng khi implementation; custom schema mặc định có thể được ghép với target schema. DuckDB loader phải đóng connection trước khi dbt subprocess ghi candidate.
 
-4 CSV local ở `data/bootstrap/` không hiển thị trong cây source được commit. Xem inventory và phạm vi kiểm tra trong [ingestion plan](ingestion-plan.md).
+## Phần đã đưa khỏi source
+
+dlt/MinIO, Parquet manifest/commit, bootstrap product/DDL cũ, Text-to-SQL, task_groups, replay scaffold, archive plan cũ và PNG render tạm đã chuyển vào .local recovery được Git/Docker ignore. Nội dung được giữ để khôi phục; không nằm trong source đang phát triển.
+
+Audit lịch sử được giữ ở vị trí cũ; [kiến trúc](architecture.md) và [roadmap](roadmap.md) là plan hiện hành. [CDC](cdc-plan.md) là chặng học sau, chưa có connector.
