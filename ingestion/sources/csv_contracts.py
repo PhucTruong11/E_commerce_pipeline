@@ -1,3 +1,4 @@
+# Vai trò: kiểm tra cấu trúc CSV và tạo fingerprint cho snapshot đầu vào.
 import csv
 import hashlib
 import io

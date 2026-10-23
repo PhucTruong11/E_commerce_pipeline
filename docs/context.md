@@ -24,7 +24,7 @@ Chưa có số liệu được tính trong repository. Các số trong business 
 | Q10 | Top 15 quốc gia theo doanh thu | `fct_order_lines`, `dim_regions` | Country mapping; kỳ và tie-break |
 | Q11 | Tăng trưởng doanh thu YoY theo tháng | `mart_monthly_performance` | Tháng đủ kỳ; calendar spine; thiếu baseline |
 | Q12 | Top 3 sản phẩm lợi nhuận cao nhất mỗi category | `mart_product_performance`, `dim_products` | Tổng profit hay margin; đề xuất tổng profit |
-| Q13 | Khách mua trên nhiều region | `fct_orders`, `dim_regions` | Region theo giao dịch, không phải nơi ở của customer |
+| Q13 | Khách mua trên nhiều region | `fct_order_lines`, `dim_regions` | Region theo giao dịch, không phải nơi ở của customer |
 | Q14 | Phân khúc khách hàng bằng RFM | `mart_customer_rfm` | Cửa sổ, as-of, scoring, tie policy và segment rules |
 | Q15 | Sản phẩm thường mua cùng | `mart_market_basket` | Product-code identity; minimum support/count; kỳ |
 
@@ -33,7 +33,7 @@ Một câu hỏi có thể được trả lời bằng SQL trong `warehouse/anal
 ## Metadata cho mỗi câu trả lời
 
 - Nguồn model và grain; tập dữ liệu được đưa vào/loại ra.
-- Ngày bắt đầu/kết thúc, `as_of_date` nếu có và `release_id`.
+- Ngày bắt đầu/kết thúc, `as_of_date` nếu có, `extraction_id`, `analysis_run_id`, `release_id` và code revision/hash.
 - Định nghĩa metric, đơn vị và quy tắc null/ties.
 - SQL có thể chạy lại và các phép đối soát liên quan.
 - Phân biệt quan sát, giả thuyết và đề xuất hành động.
@@ -47,3 +47,9 @@ Một câu hỏi có thể được trả lời bằng SQL trong `warehouse/anal
 5. Định nghĩa VIP, churn-risk, cửa sổ RFM và cross-sell được chọn là gì?
 
 Chỉ chốt ngưỡng và kết luận sau khi truy vấn dữ liệu thật. Khi thiếu lịch sử quan sát, không gọi RFM monetary là lifetime value dự báo.
+
+## Thứ tự tạo giá trị
+
+Bắt đầu Q1/Q2/Q5/Q6/Q7 để kiểm tra sales, margin và đơn lỗ, rồi Q3/Q10/Q11/Q12 cho sản phẩm/thị trường/thời gian. Q4/Q13/Q14 dùng dimensions và order grain đã kiểm tra; Q8 cần chốt rule VIP/risk. Q9/Q15 làm sau product identity và basket population. Không cần tạo một mart cho mỗi câu hỏi.
+
+Đầu ra MVP là SQL có thể chạy lại cùng báo cáo 3–5 phát hiện. Mỗi phát hiện gồm số liệu, kỳ, phạm vi, tác động kinh doanh, hành động đề xuất và giới hạn. Nếu thiếu currency contract hoặc không có baseline/đủ support thì ghi chưa đủ điều kiện kết luận. Dashboard và chatbot không phải điều kiện hoàn thành báo cáo.

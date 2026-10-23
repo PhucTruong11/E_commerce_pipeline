@@ -1,13 +1,9 @@
-# Runtime data local
+# Dữ liệu local
 
-Thư mục này giữ đầu vào và runtime artifacts local. Đã có 4 CSV ở `bootstrap/`; chưa có artifacts do pipeline sinh ra.
+4 CSV trong bootstrap/ là đầu vào read-only, không commit. Bootstrap vào PostgreSQL source một lần; Python extract sang DuckDB Bronze, dbt xây Silver/Gold.
 
-- `bootstrap/`: snapshot đầu vào được lấy hợp lệ; có thể chứa PII, không commit.
-- `warehouse/`: file DuckDB build và metadata local; một writer tại một thời điểm.
-- `serving/`: releases Gold bất biến, release metadata và pointer active.
+warehouse/ là vị trí host dev dự kiến cho candidate/build DuckDB và lineage; Docker dùng volume riêng mount nhất quán vào runtime. serving/ giữ Gold-only immutable releases và active pointer khi triển khai. Hiện chưa có pipeline artifacts được sinh.
 
-Raw archive chính nằm trong MinIO, theo layout trong [data flow](../docs/data-flow.md). Compose volumes cho Postgres/MinIO/Dagster sẽ được cấu hình ở chặng implementation, không mặc định trỏ vào những thư mục này.
+CSV/checksum chỉ lưu baseline. Khi tạo OLTP changes, cần source backup hoặc change journal để tái lập lịch sử. Không dùng MinIO/S3 trong MVP. Xem [data flow](../docs/data-flow.md), [CDC plan](../docs/cdc-plan.md).
 
-`.gitignore` loại payload runtime; chỉ README và `.gitkeep` được giữ. Dữ liệu giả lập dùng cho tests nằm ở `tests/fixtures/`, không sao chép dữ liệu khách hàng thật vào đó.
-
-Theo [ingestion plan](../docs/ingestion-plan.md), CSV gốc sẽ mount read-only vào runtime để bootstrap Postgres; dlt đọc từ Postgres và commit raw Parquet lên MinIO. `.dockerignore` cũng loại `data/` khỏi build context.
+Ignore rules tiếp tục loại CSV, DuckDB, artifacts và secrets; fixtures CI dùng dữ liệu tự tạo.

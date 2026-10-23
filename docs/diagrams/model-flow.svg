@@ -1,118 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1110" viewBox="0 0 1600 1110" role="img" aria-labelledby="title desc">
-  <title id="title">Xóm E-Com — model flow and grain</title>
-  <desc id="desc">Planned dbt model graph. Bronze inputs are the four source tables. Silver staging standardizes each source and resolves dimension duplicates. Intermediate models enrich sales lines, aggregate orders, build customer order history and distinct product pairs. Gold core facts and dimensions feed monthly performance, product, discount, RFM and basket marts. Candidate keys and semantics require profiling.</desc>
-  <defs>
-    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L8 4.5 L1 8Z" fill="#6ddcc4"/></marker>
-    <style>
-      text { font-family: 'Segoe UI', Arial, sans-serif; }
-      .eyebrow { font-size: 15px; font-weight: 700; letter-spacing: 2px; fill: #8eabc5; }
-      .title { font-size: 42px; font-weight: 700; fill: #f1f5fc; }
-      .subtitle { font-size: 21px; fill: #a8b7cd; }
-      .label { font-size: 16px; font-weight: 700; letter-spacing: 1px; fill: #becce1; }
-      .name { font-size: 21px; font-weight: 600; fill: #eef4ff; }
-      .body { font-size: 18px; fill: #bfcee0; }
-      .small { font-size: 16px; fill: #9aafc8; }
-      .edge { fill: none; stroke: #6ddcc4; stroke-width: 2.5; marker-end: url(#arrow); }
-    </style>
-  </defs>
-  <rect width="1600" height="1110" rx="28" fill="#0d1422"/>
-  <text x="52" y="47" class="eyebrow">XÓM E-COM / MODEL BLUEPRINT</text>
-  <text x="52" y="103" class="title">Model the grain before the metric</text>
-  <text x="52" y="140" class="subtitle">Planned dbt dependencies · candidate keys require profiling · no implemented model counts</text>
-
-  <rect x="52" y="180" width="1496" height="57" rx="14" fill="#142d2b" stroke="#4d8e7c"/>
-  <text x="76" y="215" class="label">BRONZE INPUTS</text>
-  <text x="280" y="215" class="body">ecom_sales · customer · product · region</text>
-  <text x="1524" y="215" class="small" text-anchor="end">Current state + raw lineage</text>
-
-  <rect x="52" y="264" width="350" height="62" rx="13" fill="#263046"/>
-  <text x="76" y="302" class="label">01 / SILVER · STAGING</text>
-  <rect x="474" y="264" width="410" height="62" rx="13" fill="#263046"/>
-  <text x="498" y="302" class="label">02 / SILVER · INTERMEDIATE</text>
-  <rect x="966" y="264" width="582" height="62" rx="13" fill="#332f22"/>
-  <text x="990" y="302" class="label">03 / GOLD · CORE + MARTS</text>
-
-  <rect x="52" y="354" width="350" height="108" rx="16" fill="#182438" stroke="#617b9b"/>
-  <text x="76" y="389" class="name">stg_ecom_sales</text>
-  <text x="76" y="420" class="body">1 source sales row</text>
-  <text x="76" y="445" class="small">Candidate key: row_id</text>
-
-  <rect x="52" y="504" width="350" height="108" rx="16" fill="#182438" stroke="#617b9b"/>
-  <text x="76" y="539" class="name">stg_products</text>
-  <text x="76" y="570" class="body">1 product_code after validation</text>
-  <text x="76" y="595" class="small">Audit duplicates and conflicts</text>
-
-  <rect x="52" y="654" width="350" height="108" rx="16" fill="#182438" stroke="#617b9b"/>
-  <text x="76" y="689" class="name">stg_customers</text>
-  <text x="76" y="720" class="body">1 customer_id after validation</text>
-  <text x="76" y="745" class="small">Nulls kept explicit</text>
-
-  <rect x="52" y="804" width="350" height="108" rx="16" fill="#182438" stroke="#617b9b"/>
-  <text x="76" y="839" class="name">stg_regions</text>
-  <text x="76" y="870" class="body">1 region_code after validation</text>
-  <text x="76" y="895" class="small">Market / geography attributes</text>
-
-  <path d="M402 408 H472" class="edge"/>
-  <path d="M402 558 H432 V434 H472" class="edge"/>
-  <path d="M402 708 H432 V434 H472" class="edge"/>
-  <path d="M402 858 H432 V434 H472" class="edge"/>
-
-  <rect x="474" y="354" width="410" height="108" rx="16" fill="#17352f" stroke="#4e927d"/>
-  <text x="498" y="389" class="name">int_order_lines_enriched</text>
-  <text x="498" y="420" class="body">1 sales row · validated dimension joins</text>
-  <text x="498" y="445" class="small">No fan-out · no silent row loss</text>
-
-  <rect x="474" y="504" width="410" height="108" rx="16" fill="#17352f" stroke="#4e927d"/>
-  <text x="498" y="539" class="name">int_orders_aggregated</text>
-  <text x="498" y="570" class="body">1 order_key · SUM(sales), SUM(profit)</text>
-  <text x="498" y="595" class="small">Loss flag only after order roll-up</text>
-
-  <rect x="474" y="654" width="410" height="108" rx="16" fill="#17352f" stroke="#4e927d"/>
-  <text x="498" y="689" class="name">int_customer_order_history</text>
-  <text x="498" y="720" class="body">1 customer × order_key</text>
-  <text x="498" y="745" class="small">Purchase sequence / intervals</text>
-
-  <rect x="474" y="804" width="410" height="138" rx="16" fill="#17352f" stroke="#4e927d"/>
-  <text x="498" y="838" class="name">int_order_products</text>
-  <text x="498" y="868" class="name">→ int_order_product_pairs</text>
-  <text x="498" y="899" class="body">1 order × distinct product pair</text>
-  <text x="498" y="924" class="small">Dedup products before self-join</text>
-
-  <path d="M679 462 V502" class="edge"/>
-  <path d="M679 612 V652" class="edge"/>
-  <path d="M402 408 H452 V873 H472" class="edge"/>
-
-  <rect x="966" y="354" width="582" height="138" rx="16" fill="#332f22" stroke="#b5a05d"/>
-  <text x="990" y="389" class="name">Core dimensions + facts</text>
-  <text x="990" y="421" class="body">dim_customers · dim_products · dim_regions · dim_date</text>
-  <text x="990" y="451" class="body">fct_order_lines (row) · fct_orders (order_key)</text>
-  <text x="990" y="477" class="small">Conformed keys · reconciled sales / profit</text>
-
-  <rect x="966" y="528" width="582" height="130" rx="16" fill="#332f22" stroke="#b5a05d"/>
-  <text x="990" y="563" class="name">Performance marts</text>
-  <text x="990" y="594" class="body">Monthly: month × market × segment</text>
-  <text x="990" y="622" class="body">Product: code × period · Discount: category × segment</text>
-  <text x="990" y="646" class="small">Explicit periods · ratio of sums · calendar-aware YoY</text>
-
-  <rect x="966" y="694" width="582" height="108" rx="16" fill="#332f22" stroke="#b5a05d"/>
-  <text x="990" y="729" class="name">mart_customer_rfm</text>
-  <text x="990" y="760" class="body">1 customer × as_of_date</text>
-  <text x="990" y="785" class="small">Rule-based segments / VIP at-risk flag</text>
-
-  <rect x="966" y="838" width="582" height="108" rx="16" fill="#332f22" stroke="#b5a05d"/>
-  <text x="990" y="873" class="name">mart_market_basket</text>
-  <text x="990" y="904" class="body">1 product pair × period</text>
-  <text x="990" y="929" class="small">Support · confidence A→B / B→A · lift</text>
-
-  <path d="M884 408 H964" class="edge"/>
-  <path d="M884 558 H920 V466 H964" class="edge"/>
-  <path d="M1257 492 V526" class="edge"/>
-  <path d="M884 708 H920 V748 H964" class="edge"/>
-  <path d="M884 873 H920 V892 H964" class="edge"/>
-
-  <rect x="52" y="984" width="1496" height="76" rx="14" fill="#151f30" stroke="#3c536d"/>
-  <text x="76" y="1016" class="label">QUALITY GATE</text>
-  <text x="258" y="1016" class="body">Keys · relationships · join cardinality · order roll-up · financial reconciliation</text>
-  <text x="76" y="1044" class="small">High-level dependencies shown. Dimensions also feed Gold core. Publish only approved Gold; exclude raw customer PII.</text>
-  <text x="52" y="1090" class="small">Model names are planned. Detailed contracts and open questions: docs/data-modeling.md + docs/context.md</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+<title id="title">Xóm E-Com: DuckDB model layers and grain</title>
+<desc id="desc">Planned model flow from PostgreSQL snapshots into DuckDB. Four Bronze snapshot tables feed four typed staging views. Enriched order lines retain row_id, then aggregate to validated order_key. First analytics marts are monthly performance, product performance and customer RFM. Category discount can use SQL analyses; market basket is deferred until product identity and sufficient basket support are confirmed. Candidate keys, currencies and metric definitions still require profiling.</desc>
+<defs>
+ <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11Z" fill="#6ddcc4"/></marker>
+ <style>
+ text{font-family:'Segoe UI',Arial,sans-serif}
+ .eyebrow{font-size:15px;font-weight:700;letter-spacing:1.6px;fill:#9bb3ce}
+ .title{font-size:42px;font-weight:700;fill:#f2f6ff}
+ .subtitle{font-size:21px;fill:#b3c3d9}
+ .heading{font-size:25px;font-weight:700;fill:#eef5ff}
+ .name{font-size:22px;font-weight:600;fill:#eef5ff}
+ .body{font-size:20px;fill:#c9d6e7}
+ .small{font-size:17px;fill:#a3b9d3}
+ .edge{fill:none;stroke:#6ddcc4;stroke-width:3;marker-end:url(#arrow)}
+ </style>
+</defs>
+<rect width="1600" height="1000" rx="28" fill="#0d1422"/>
+<text x="62" y="48" class="eyebrow">XÓM E-COM / DUCKDB MODEL BLUEPRINT</text>
+<text x="62" y="108" class="title">Model the grain before the metric.</text>
+<text x="62" y="148" class="subtitle">PostgreSQL source → DuckDB Bronze → dbt Silver / Gold · full snapshot and rebuild first</text>
+<rect x="62" y="220" width="330" height="322" rx="20" fill="#1b302e" stroke="#5a998a" stroke-width="2"/>
+<text x="86" y="260" class="heading">Bronze · PG snapshot</text>
+<text x="86" y="304" class="name">customer</text>
+<text x="86" y="331" class="small">One customer_id</text>
+<text x="86" y="371" class="name">product</text>
+<text x="86" y="398" class="small">One product_code</text>
+<text x="86" y="438" class="name">region</text>
+<text x="86" y="465" class="small">One region_code</text>
+<text x="86" y="505" class="name">ecom_sales · one row_id</text>
+<path class="edge" d="M392 382 H452"/>
+<rect x="452" y="220" width="392" height="322" rx="20" fill="#282b40" stroke="#8b7daf" stroke-width="2"/>
+<text x="476" y="260" class="heading">staging · typed views</text>
+<text x="476" y="308" class="name">stg_customers</text>
+<text x="476" y="352" class="name">stg_products</text>
+<text x="476" y="396" class="name">stg_regions</text>
+<text x="476" y="440" class="name">stg_ecom_sales</text>
+<text x="476" y="487" class="small">Types / null rules / keys / relationships</text>
+<text x="476" y="516" class="small">No arbitrary dedup or hidden exclusions</text>
+<path class="edge" d="M844 382 H876 V333 H902"/>
+<rect x="902" y="220" width="636" height="322" rx="20" fill="#19283b" stroke="#708bab" stroke-width="2"/>
+<text x="926" y="260" class="heading">intermediate → core facts in marts</text>
+<rect x="926" y="286" width="588" height="92" rx="12" fill="#263b4d" stroke="#547d98"/>
+<text x="950" y="321" class="name">fct_order_lines</text>
+<text x="950" y="351" class="body">One row_id · dimension joins must not fan out</text>
+<path class="edge" d="M1220 378 V420"/>
+<rect x="926" y="420" width="588" height="92" rx="12" fill="#263b4d" stroke="#547d98"/>
+<text x="950" y="455" class="name">fct_orders</text>
+<text x="950" y="485" class="body">One validated order_key · sales / profit roll-up</text>
+<path class="edge" d="M1220 542 V596 H287 V654"/>
+<path class="edge" d="M1220 596 H801 V654"/>
+<path class="edge" d="M1220 596 H1313 V654"/>
+<text x="62" y="576" class="eyebrow">FIRST THREE ANALYTICS MARTS · RECONCILE BEFORE REPORTING</text>
+<rect x="62" y="670" width="450" height="151" rx="18" fill="#353121" stroke="#b6a65d" stroke-width="2"/>
+<text x="86" y="710" class="heading">Monthly performance</text>
+<text x="86" y="746" class="body">Month × market × segment</text>
+<text x="86" y="780" class="small">From lines · sales / margin / calendar YoY</text>
+<rect x="576" y="670" width="450" height="151" rx="18" fill="#353121" stroke="#b6a65d" stroke-width="2"/>
+<text x="600" y="710" class="heading">Product performance</text>
+<text x="600" y="746" class="body">Product code × analysis period</text>
+<text x="600" y="780" class="small">From lines · quantity / sales / profit</text>
+<rect x="1088" y="670" width="450" height="151" rx="18" fill="#353121" stroke="#b6a65d" stroke-width="2"/>
+<text x="1112" y="710" class="heading">Customer RFM</text>
+<text x="1112" y="746" class="body">Customer × fixed as_of_date</text>
+<text x="1112" y="780" class="small">From orders · explicit window and scoring</text>
+<rect x="62" y="866" width="1476" height="65" rx="15" fill="#1c2334" stroke="#495a73" stroke-dasharray="6 6"/>
+<text x="86" y="906" class="body">Next: discount analysis SQL · basket after product-identity and support checks · dashboard after insight validation</text>
+<text x="62" y="975" class="small">Candidate keys require profiling · source-reported sales/profit semantics and currency remain open · not implemented models</text>
 </svg>

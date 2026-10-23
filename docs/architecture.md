@@ -1,85 +1,55 @@
-# Architecture
+# Kiến trúc: PostgreSQL → DuckDB → dbt → insight
 
-> Thiết kế mục tiêu, chưa phải mô tả hệ thống đã triển khai. Ngày thiết kế: 2026-10-19.
-
-## Bối cảnh và mục tiêu
-
-Xóm E-Com có dữ liệu bán hàng, khách hàng, sản phẩm và địa lý. Mục tiêu học tập là thiết kế một ELT pipeline có thể chạy lại, xử lý thay đổi và phục hồi từ raw, đồng thời cung cấp dữ liệu có grain rõ ràng cho 15 câu hỏi nghiệp vụ.
-
-Quy mô dữ liệu hiện tại không đòi hỏi distributed compute. MinIO và Postgres giả lập được thêm để luyện ranh giới source/storage/compute và thử các tình huống lỗi. Đây là lựa chọn theo mục tiêu học tập, không phải yêu cầu hiệu năng của dataset.
-
-## Kiến trúc tổng thể
+> Quyết định cập nhật 2026-10-23 theo lựa chọn giữ PostgreSQL, DuckDB và dbt. Chỉ sửa thiết kế/tài liệu; chưa provision hoặc deploy.
 
 ![Data flow](diagrams/data-flow.svg)
 
-| Thành phần | Trách nhiệm | Không chịu trách nhiệm |
-| --- | --- | --- |
-| Bootstrap / simulator | Nhập snapshot vào Postgres; sinh insert/update có kiểm soát | Suy diễn rằng dữ liệu giả lập là giao dịch thực |
-| PostgreSQL source | Lưu dữ liệu nguồn mô phỏng; cấp quyền đọc riêng cho ingestion | Phục vụ BI hoặc chạy transformations nặng |
-| dlt ingestion | Extract, chuẩn hóa kiểu để ghi Parquet, ghi metadata batch | Tính RFM hoặc business KPIs |
-| MinIO raw | Archive payload nguồn theo batch; manifest và schema | Là trạng thái current-state đã merge |
-| DuckDB Bronze loader | Chỉ đọc batch committed; apply snapshot/upsert có đối soát | Đọc lại Postgres khi dbt cần retry |
-| dbt | Silver, Gold, docs và data tests | Extract nguồn hay tự publish release |
-| Airflow | DAG dependencies, retry, giới hạn writer, quality gate, publish | Chứa toàn bộ business logic hoặc thay thế transaction database |
-| Serving | Streamlit và API Text-to-SQL đọc release đã publish | Mở file build đang được dbt ghi |
-| GitHub Actions | Kiểm tra PR với fixtures giả lập | Là scheduler cho pipeline thay Airflow |
+## Vai trò từng thành phần
 
-Raw ở đây bảo toàn **giá trị nguồn cùng schema/metadata** trong Parquet, không cam kết giữ nguyên byte của database export. Phải kiểm tra precision/scale của decimal và round-trip kiểu ngày khi triển khai.
+| Thành phần | Vai trò |
+| --- | --- |
+| 4 CSV gốc | Snapshot bootstrap, giữ read-only và checksum |
+| PostgreSQL dùng chung | Database nguồn riêng; ban đầu chứa snapshot CSV, sau có thể luyện OLTP |
+| Python + psycopg | Bootstrap bằng COPY; extract một snapshot nhất quán qua read-only transaction |
+| DuckDB | Warehouse local, lưu Bronze và các lớp phân tích |
+| dbt Core + dbt-duckdb | Silver staging/intermediate, Gold facts/marts, tests và docs |
+| Docker runtime | Một image chạy bootstrap/extract/build; DuckDB là file trong volume, không thêm server |
+| Airflow hiện có | Một DAG mỏng gọi runtime qua BudgetDockerOperator |
+| SQL/report | Đầu ra chính: 15 câu hỏi và 3–5 phát hiện có bằng chứng |
 
-## Các quyết định thiết kế
+Bỏ MinIO/S3 khỏi MVP. Chưa cần dlt, Kafka, Cosmos hoặc chatbot. Dùng Python để giữ ingestion nhỏ; thêm framework khi có nhu cầu cụ thể.
 
-| Quyết định | Lý do | Hệ quả |
-| --- | --- | --- |
-| Hai chế độ: Airflow có sẵn / standalone Compose | Tận dụng môi trường hiện tại, vẫn chia sẻ repo tự chạy được | Dùng chung runtime và DAG; cấu hình network/storage riêng |
-| Postgres giả lập từ snapshot | Chủ động tạo update và lỗi | Gắn nhãn nguồn mô phỏng; không thay đổi schema công bố của Xóm Data trong tài liệu |
-| Batch incremental, chưa log CDC | Đủ cho mục tiêu học tập giai đoạn đầu | Cần `updated_at` đáng tin; hard delete nằm ngoài MVP |
-| Raw Parquet bất biến | Replay và audit | Upsert thực hiện ở Bronze, không ghi đè lịch sử raw |
-| DuckDB build + releases bất biến | Tách writer khỏi người đọc | Serving cần đổi release bằng cách đóng/mở kết nối |
-| dbt full rebuild ban đầu | Đơn giản hóa tính đúng khi sửa đơn cũ | Incremental dbt là tối ưu sau khi có bằng chứng cần thiết |
-| Streamlit trước, Gemini sau | Hoàn tất dữ liệu và metric trước lớp AI | Dashboard và Text-to-SQL cùng dùng contract Gold |
-| Một orchestrator: Apache Airflow | Tận dụng Airflow đã có trên máy | Ghim phiên bản theo môi trường thực tế; không đổi/nâng cấp Airflow hiện có tự động |
-| DAG mỏng + project runtime | Giữ code pipeline độc lập với orchestrator | Copy DAG cần kèm runtime đã cài và cấu hình; dbt CLI trước, Cosmos tùy chọn sau |
+DuckDB bổ sung một bước sao chép dữ liệu so với dùng toàn PostgreSQL. Đổi lại, dự án học rõ ranh giới nguồn giao dịch và kho phân tích; dbt không chạy các aggregation trên PostgreSQL chung. Không tuyên bố stack này nhanh hơn ở mọi quy mô. Adapter dự kiến là [dbt-duckdb cho dbt Core](https://github.com/duckdb/dbt-duckdb); pin bộ phiên bản khi implementation.
 
-## Storage và ranh giới lớp
+## Ba chặng
 
-- **Raw / MinIO:** batch archive, mỗi bảng có manifest và schema; không chứa business dedup âm thầm.
-- **Bronze / DuckDB:** dữ liệu nguồn đã apply theo snapshot hoặc incremental; metadata và ledger phục vụ audit.
-- **Silver / DuckDB:** kiểu dữ liệu chuẩn, khóa đã xác nhận, join được kiểm soát, order roll-up.
-- **Gold / DuckDB:** dimensions, facts và marts có mô tả metric, grain, thời gian và giới hạn sử dụng.
-- **Serving release:** file database riêng chỉ chứa Gold được duyệt và metadata release, không phát hành toàn bộ raw/customer PII.
+1. **Snapshot và insight:** CSV bootstrap một lần vào PostgreSQL → full extract → DuckDB Bronze → dbt Silver/Gold → SQL/report.
+2. **OLTP lab:** thêm các thao tác insert/update/delete có kiểm soát; kiểm thử đơn cũ sửa giá, khách/sản phẩm mới, xóa dòng. Full snapshot vẫn dùng được.
+3. **CDC tùy chọn:** khi hai chặng đầu ổn, capture thay đổi nguồn và apply idempotently vào Bronze, rồi rebuild models chịu ảnh hưởng.
 
-MinIO + DuckDB là thiết kế lake-backed analytics theo hướng lakehouse. MVP chưa có transactional table format như Iceberg/Delta, catalog tập trung hoặc ACID transaction trên tập Parquet. Lake và warehouse không bắt buộc luôn đứng nối tiếp trong mọi hệ thống.
+Không gọi polling theo updated_at là WAL-based CDC. CSV không đổi thì không tự sinh giao dịch hoặc change events. Có thể học CDC bằng nguồn mô phỏng, nhưng ghi rõ thay đổi là do simulator tạo. [CDC plan](cdc-plan.md).
 
-## Concurrency và publish
+## Database, schemas và quyền
 
-Airflow dùng DAG `max_active_runs=1`, pool writer có một slot và runtime file lock cho cùng file DuckDB, bao gồm manual runs và backfills. Pool chỉ bảo vệ tasks thực sự được gán vào pool; script ngoài Airflow vẫn phải tuân thủ file lock. MVP giữ load Bronze, dbt build, gate và publish trong một task `build_and_publish` để giữ lock suốt vòng build, tránh các run xen kẽ giữa load và publish. dbt có thể quản lý concurrency bên trong process/connection của nó theo khả năng adapter.
+PostgreSQL đề xuất: **ecom_source_dev**, schema e_commerce chứa 4 bảng nguồn; pipeline_meta giữ bootstrap inventory. Tên này thay đề xuất ecom_analytics_dev trước đó, chưa tạo hoặc rename database nào.
 
-Với standalone demo, ưu tiên single-host LocalExecutor và shared volume có semantics khóa file được kiểm tra. Nếu Airflow có sẵn dùng Celery/Kubernetes, cần bố trí worker/storage tương thích hoặc chỉ định một worker chuyên dụng; không giả định file local của task trước tự xuất hiện ở task sau. Chi tiết hai chế độ và giới hạn nằm trong [Airflow & Docker](airflow-docker.md).
+- ecom_owner: bootstrap/OLTP writer không superuser, chỉ database riêng.
+- ecom_reader: extraction login chỉ đọc 4 bảng nguồn, không quyền ghi.
+- Database limit đề xuất 8 connections; owner 4, reader 2. CDC cần role/permissions riêng, chưa cấp.
+- PostgreSQL chung: warehouse-laplaptech:5432, network laplaptech-lab. Không dùng metadata Airflow hoặc credentials/config LaplapTech.
+- Warehouse DuckDB: bronze (4 nguồn + extraction lineage), staging, intermediate, marts và pipeline_meta riêng. Staging/intermediate chủ yếu views, facts/marts tables.
+- Reader báo cáo đọc file Gold-only được publish; không lấy tài khoản PG extractor làm tài khoản BI.
 
-Sau khi quality gate đạt, publisher đóng kết nối writer, tạo file serving theo `release_id`, kiểm tra read-only rồi cập nhật pointer release bằng atomic replace trên cùng filesystem. Không copy database đang có writer hoạt động. Không thay thế file `.duckdb` mà dashboard đang mở trên Windows; người đọc đóng kết nối cũ và mở đường dẫn phiên bản mới. Giữ release trước để rollback.
+PG cần profile kiểu/PK/FK trước khi enforce DDL. Không biến dataset này thành hệ OLTP production chỉ bằng cách nạp CSV; nó là nguồn mô phỏng phục vụ học.
 
-Chi tiết transaction và recovery nằm trong [data flow](data-flow.md) và [operations](operations.md).
+## Snapshot, writer và serving
 
-## An toàn dữ liệu và Text-to-SQL
+Bootstrap không chạy lại để ghi đè giao dịch mỗi lần refresh. CSV mới cần explicit reset/new-baseline workflow; khi CDC hoạt động phải thiết kế cutover riêng.
 
-- `.env`/secret store giữ credentials; repository chỉ chứa `.env.example` khi triển khai cấu hình.
-- Raw có thông tin khách hàng: hạn chế quyền và không commit/export công khai.
-- Gold serving mặc định bỏ email, tên và birth date; chỉ giữ thuộc tính cần thiết cùng định danh phân tích.
-- LLM nhận mô tả schema/metric và SQL examples đã duyệt, không tự động nhận raw rows hoặc PII.
-- Executor phân tích toàn bộ AST bằng dialect DuckDB; allowlist relation, column và function; chỉ một query được phép.
-- Read-only connection đi cùng sandbox filesystem/network, chặn external access/extension loading và giới hạn thời gian, bộ nhớ, số dòng.
-- Không coi SQLGlot, prompt hoặc read-only là ranh giới bảo mật duy nhất.
-- Log prompt/SQL cần chính sách loại thông tin nhạy cảm; model Gemini cụ thể được cấu hình và xác nhận availability/pricing ở thời điểm tích hợp.
+Full extract đọc cả 4 bảng bằng **cùng connection và REPEATABLE READ READ ONLY transaction**. Mỗi lần tạo candidate DuckDB mới, COPY/insert theo batch; đối soát count/keys/sales/profit trước dbt. Không hứa transaction phân tán giữa PostgreSQL và DuckDB.
 
-## Ngoài phạm vi MVP
+Một writer giữ runtime file lock trên volume chung từ extract tới publish; Airflow max_active_runs/max_active_tasks=1. Mọi CLI writers dùng cùng lock. Không giữ connection DuckDB Python mở khi dbt subprocess cần ghi cùng file.
 
-Log-based CDC, hard-delete propagation, Kafka, Iceberg/Delta, cloud deployment, multi-user warehouse service, SCD2 lịch sử đầy đủ và mô hình churn được huấn luyện. Không tuyên bố exactly-once; mục tiêu là kết quả nghiệp vụ idempotent khi batch được xử lý lại.
+Sau dbt build và reconciliation, xuất **Gold-only** sang file release mới, đóng writer, kiểm tra read-only và atomically thay active pointer trên cùng filesystem. Reader chọn một release cho cả request; không mở file build. Failed run không đổi pointer. Không chỉ copy nguyên build file vì Bronze/customer PII có thể đi theo.
 
-## Tham chiếu
-
-- [Dataset schema](https://dataset.xomdata.com/datasets/schema/e_commerce)
-- [dlt filesystem](https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem)
-- [DuckDB concurrency](https://duckdb.org/docs/current/connect/concurrency)
-- [DuckDB security](https://duckdb.org/docs/current/operations_manual/securing_duckdb/overview)
-- [Airflow Docker Compose](https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html)
-- [Airflow best practices](https://airflow.apache.org/docs/apache-airflow/stable/best-practices.html)
+Không có MinIO nghĩa là không có raw history ngoài warehouse được giữ. CSV backup chỉ tái lập baseline; thay đổi OLTP sau đó cần PG backup/change journal nếu muốn phục hồi lịch sử. Retention build/release và backup phải rõ, không hứa replay mọi thời điểm.
