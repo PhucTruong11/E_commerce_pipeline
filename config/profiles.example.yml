@@ -1,0 +1,13 @@
+ecom:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('ECOM_DUCKDB_PATH') }}"
+      schema: silver
+      threads: "{{ env_var('DBT_THREADS', '1') | int }}"
+      settings:
+        memory_limit: "{{ env_var('DUCKDB_MEMORY_LIMIT', '512MB') }}"
+        threads: 1
+        temp_directory: /state/build/spill
+        max_temp_directory_size: 1GB

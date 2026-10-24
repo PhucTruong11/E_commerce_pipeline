@@ -21,9 +21,9 @@ Không dùng `(order_id, product_code)` làm khóa dòng mặc định. Nếu or
 
 `bronze.ecom_sales`, `bronze.customer`, `bronze.product`, `bronze.region` trong DuckDB giữ snapshot được extract từ PostgreSQL và extraction lineage. PG e_commerce là nguồn; DuckDB Bronze là đầu vào dbt. Mỗi candidate nhận đủ 4 bảng, không union các snapshot.
 
-CSV chỉ lưu baseline bootstrap. Source có OLTP changes thì cần PG backup/change journal để phục hồi lịch sử; không có MinIO archive. Xem [snapshot contract](data-flow.md).
+CSV chỉ lưu baseline bootstrap. Source có OLTP changes thì cần PG backup/change journal để phục hồi lịch sử; không có MinIO archive. Xem [snapshot contract](architecture.md).
 
-## 3. DuckDB staging · dbt views
+## 3. DuckDB Silver · staging views
 
 | Model | Grain | Trách nhiệm |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ CSV chỉ lưu baseline bootstrap. Source có OLTP changes thì cần PG backup/
 
 Dedup không phải mặc định dùng `ROW_NUMBER()` rồi lấy bất kỳ dòng đầu. Exact duplicate có thể collapse có audit; conflicting duplicate phải quarantine hoặc fail cho tới khi có business rule. Giữ precision decimal và phân biệt null với zero.
 
-## 4. DuckDB intermediate · join và order grain
+## 4. DuckDB Silver · joins và order grain
 
 | Model | Grain | Logic |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ Không để inner join âm thầm làm mất sales; không để duplicate dime
 
 Ưu tiên triển khai `fct_order_lines`, `fct_orders` và ba marts monthly/product/RFM. Category discount có thể trả bằng analysis SQL; basket chỉ thêm sau khi product identity/population đã xác nhận. Không cần tạo tất cả models ngay để trả lời câu hỏi đơn giản.
 
-Các model core/analytics cùng nằm trong schema `marts` ở MVP. `dim_*` mô tả thực thể; `mart_*` chứa metric và mốc thời gian. Không gộp RFM vào customer dimension như một thuộc tính tĩnh. Lịch sử dimension trong MVP là current-state; chưa bảo đảm thuộc tính đúng tại thời điểm giao dịch.
+Các facts/dimensions/analytics models cùng nằm trong schema `gold` ở MVP; staging và intermediate models nằm trong `silver`. Code tổ chức tại `dbt/models/bronze`, `silver`, `gold`; Bronze là source declarations cho bảng Python đã nạp. `dim_*` mô tả thực thể; `mart_*` chứa metric và mốc thời gian. Không gộp RFM vào customer dimension như một thuộc tính tĩnh. Lịch sử dimension trong MVP là current-state; chưa bảo đảm thuộc tính đúng tại thời điểm giao dịch.
 
 ## 6. Metric contract cần chốt
 

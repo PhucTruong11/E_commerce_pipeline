@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    description: >-
+      PostgreSQL snapshots loaded by the Python extractor into a private DuckDB
+      candidate. These declarations describe sources; dbt does not load them.
+      Bootstrap/extraction and source tables are not implemented yet.
+    tables:
+      - name: customer
+        description: One source customer_id, with extraction lineage; contains private customer data.
+      - name: product
+        description: One source product_code; product identity still requires business validation.
+      - name: region
+        description: One source region_code.
+      - name: ecom_sales
+        description: One source row_id; order_id is not the line key.

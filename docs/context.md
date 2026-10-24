@@ -28,7 +28,7 @@ Chưa có số liệu được tính trong repository. Các số trong business 
 | Q14 | Phân khúc khách hàng bằng RFM | `mart_customer_rfm` | Cửa sổ, as-of, scoring, tie policy và segment rules |
 | Q15 | Sản phẩm thường mua cùng | `mart_market_basket` | Product-code identity; minimum support/count; kỳ |
 
-Một câu hỏi có thể được trả lời bằng SQL trong `warehouse/analyses/`; không cần tạo riêng một mart cho từng câu. File analysis Q01–Q15 sẽ được viết sau khi các contract được xác nhận.
+Một câu hỏi có thể được trả lời bằng SQL trong `dbt/analyses/`; không cần tạo riêng một mart cho từng câu. File analysis Q01–Q15 sẽ được viết sau khi các contract được xác nhận.
 
 ## Metadata cho mỗi câu trả lời
 

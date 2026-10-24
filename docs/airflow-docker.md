@@ -1,6 +1,6 @@
 # Contract Airflow / Docker
 
-> Plan 2026-10-23; chưa có runtime hoặc DAG triển khai. [Docker plan](docker-plan.md) là nguồn cấu hình mục tiêu.
+> Plan tích hợp DAG, cập nhật 2026-10-24. Runtime và DB/users đã triển khai theo [Docker runbook](docker.md); DAG chưa deploy. [Docker runbook](docker.md) ghi rõ phần hiện có và công việc còn lại.
 
 ## Cách nối với platform hiện có
 
@@ -25,7 +25,7 @@ DAG concurrency không bảo vệ CLI chạy ngoài Airflow. CLI cũng không t�
 
 ## Tích hợp sau luồng phân tích
 
-Trước tiên loader và dbt phải được kiểm chứng trong runtime có ngân sách. Sau đó mới thực hiện đăng ký policy, DAG distribution và chạy DAG. Mọi thay đổi hạ tầng dùng chung tuân thủ quy trình drain trong AGENTS/platform runbook.
+Trước tiên loader và dbt phải được kiểm chứng trong runtime có ngân sách. Resource ecom/refresh đã đăng ký; sau khi CLI đạt mới mount DAG/config riêng và thử một DAG run. Mọi thay đổi hạ tầng dùng chung tuân thủ quy trình drain trong AGENTS/platform runbook.
 
 Dữ liệu lịch sử không mới theo ngày hiện tại; theo dõi last successful run và kỳ dữ liệu riêng, không dùng MAX(order_date) cũ làm báo động ingestion trễ.
 

@@ -1,0 +1,79 @@
+name: ecom-dev
+
+x-runtime: &runtime
+  image: ecom-runtime:local-v1
+  build:
+    context: .
+    dockerfile: infra/docker/runtime.Dockerfile
+  init: true
+  env_file: .env
+  mem_limit: ${ECOM_RUNTIME_MEMORY_MIB:-1024}m
+  memswap_limit: ${ECOM_RUNTIME_MEMORY_MIB:-1024}m
+  cpus: ${ECOM_RUNTIME_CPUS:-1}
+  pids_limit: 256
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs:
+    - /tmp:size=134217728,mode=1777
+  volumes:
+    - type: bind
+      source: ./data/bootstrap
+      target: /input
+      read_only: true
+      bind: {create_host_path: false}
+    - type: bind
+      source: ./config/profiles.example.yml
+      target: /app/config/profiles.yml
+      read_only: true
+      bind: {create_host_path: false}
+    - ecom-build:/state/build
+    - ecom-releases:/state/releases
+    - ecom-artifacts:/state/artifacts
+  networks: [shared]
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+  restart: "no"
+  labels:
+    com.ecom.project: ecom
+    com.ecom.stage: environment
+
+services:
+  runtime:
+    <<: *runtime
+    environment:
+      PGUSER: ecom_reader
+      PG_PASSWORD_FILE: /run/secrets/pg_password
+    secrets:
+      - source: reader_password
+        target: pg_password
+
+  owner:
+    <<: *runtime
+    profiles: [bootstrap]
+    environment:
+      PGUSER: ecom_owner
+      PG_PASSWORD_FILE: /run/secrets/pg_password
+    secrets:
+      - source: owner_password
+        target: pg_password
+
+secrets:
+  owner_password:
+    file: ./.local/secrets/owner.password
+  reader_password:
+    file: ./.local/secrets/reader.password
+
+networks:
+  shared:
+    external: true
+    name: ${ECOM_SHARED_NETWORK:-laplaptech-lab}
+
+volumes:
+  ecom-build:
+    name: ecom-dev-build
+  ecom-releases:
+    name: ecom-dev-releases
+  ecom-artifacts:
+    name: ecom-dev-artifacts

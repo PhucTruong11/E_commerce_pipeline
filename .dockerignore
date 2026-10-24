@@ -50,7 +50,7 @@ temp
 **/*.avro
 **/*.orc
 !tests/fixtures/synthetic/**/*.csv
-!warehouse/seeds/reference/**/*.csv
+!dbt/seeds/reference/**/*.csv
 
 .venv
 venv
@@ -82,9 +82,9 @@ compose.override.yaml
 compose.override.yml
 docker-compose.override.yaml
 docker-compose.override.yml
-warehouse/target
-warehouse/dbt_packages
-warehouse/logs
+dbt/target
+dbt/dbt_packages
+dbt/logs
 **/logs
 **/*.log
 **/*.log.*
