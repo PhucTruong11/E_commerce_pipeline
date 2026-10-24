@@ -15,7 +15,7 @@ function Invoke-SourceSql([string]$Database, [string]$Sql) {
 $ownerPath = Join-Path $projectRoot '.local/secrets/owner.password'
 $readerPath = Join-Path $projectRoot '.local/secrets/reader.password'
 foreach ($path in @($ownerPath, $readerPath)) {
-    if (-not (Test-Path -LiteralPath $path)) { throw 'Run Initialize-LocalEnv.ps1 first.' }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw 'Run Initialize-LocalEnv.ps1 first.' }
 }
 $ownerPassword = [IO.File]::ReadAllText($ownerPath).Trim()
 $readerPassword = [IO.File]::ReadAllText($readerPath).Trim()

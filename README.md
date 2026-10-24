@@ -2,7 +2,7 @@
 
 Học **PostgreSQL, DuckDB, dbt, Docker và Airflow** qua phân tích sales, profit, discount và hành vi mua hàng từ bốn CSV Xóm E-Com.
 
-**Môi trường dev đã sẵn sàng:** Docker runtime riêng, dependency lock, database/owner/reader trên PostgreSQL chung và smoke checks. Chưa nạp CSV, viết business models, tính insight hoặc triển khai DAG. Bắt đầu tại [hướng dẫn Docker](docs/docker.md) và [plan thực hành hôm nay](docs/plans/2026-10-24-ddl-bootstrap-extract.md).
+**Loader đã hoàn thiện:** bootstrap CSV atomic/idempotent và extractor snapshot PostgreSQL → DuckDB Bronze. Image đã build, 10 kiểm tra fixture đạt; đã nạp và đối soát đủ 100.889 dòng từ CSV → PostgreSQL → DuckDB Bronze. Bootstrap chạy lại trả skipped. Chưa có business models, insight hoặc DAG. Bắt đầu tại [hướng dẫn Docker](docs/docker.md) và [plan thực hành hôm nay](docs/plans/2026-10-24-bootstrap-extract.md).
 
 ## Luồng dự án
 
@@ -23,7 +23,7 @@ Nguồn: [Xóm E-Com](https://dataset.xomdata.com/datasets/schema/e_commerce). I
 | `region.csv` | 3.828 | Một `region_code` |
 | `ecom_sales.csv` | 51.290 | Một `row_id`, không phải một order |
 
-Tổng **100.889 dòng, khoảng 8,76 MiB**. Parser đã kiểm headers/width/candidate keys; types, FK, order scope, currency và ý nghĩa sales/profit còn cần xác minh. Không dedup tùy ý theo `order_id + product_code` hoặc công bố insight khi chưa có kiểm chứng.
+Tổng **100.889 dòng, khoảng 8,76 MiB**. Đã kiểm headers/width/PK/types/date/precision/null và orphan keys. Có 2 dòng sales không khớp product và 2 dòng không khớp region; giữ lại và báo cáo. Order scope, currency và ý nghĩa sales/profit còn cần xác minh. Không dedup tùy ý theo `order_id + product_code` hoặc công bố insight khi chưa có kiểm chứng.
 
 ## Cấu trúc chính
 
@@ -34,9 +34,8 @@ e_commerce/
 ├── requirements.lock.txt    # bộ phiên bản đã ghim
 ├── config/                  # env/profile mẫu; không có password thật
 ├── infra/docker/            # Dockerfile runtime
-├── infra/postgres/init/     # DDL nguồn sẽ viết
-├── ingestion/               # CSV contract, snapshot loader sẽ viết
-├── scripts/                 # setup/provision/preflight/check; bootstrap sẽ viết
+├── ingestion/               # contracts, runtime guards, snapshot loader
+├── scripts/                 # setup/provision/CLI và bootstrap COPY
 ├── dbt/
 │   ├── models/bronze/       # source declarations, Python nạp dữ liệu
 │   ├── models/silver/       # staging và joins/intermediate
@@ -46,18 +45,18 @@ e_commerce/
 ├── orchestration/dags/      # DAG chưa triển khai
 ├── data/bootstrap/          # CSV local, không commit/bake vào image
 ├── analysis/reports/        # báo cáo đã rà PII, chưa có insight
-├── tests/                   # unit/integration/synthetic fixtures
+├── tests/integration/       # rollback/retry/snapshot trên fixture Docker
 └── docs/                    # kiến trúc, runbook, modeling và plan
 ```
 
-`.env`, `.local/`, input CSV, `.duckdb`, artifacts/logs và dumps không commit. Docker dùng `ecom-dev-build`, `ecom-dev-releases`, `ecom-dev-artifacts`; các volume không nằm trong source. Config local nằm trong `.local/secrets/`; runtime không dùng credential admin LapLapTech.
+`.env`, `.local/`, input CSV, `.duckdb`, artifacts/logs và dumps không commit. Docker dùng `ecom-dev-build`, `ecom-dev-releases`, `ecom-dev-artifacts`; các volume không nằm trong source. Config local nằm trong `.local/secrets/`; runtime không dùng credential admin LapLapTech. Có bản DuckDB private cho DataGrip trong `.local/datagrip/`; xem [hướng dẫn mở file](docs/docker.md#mở-duckdb-bằng-datagrip).
 
 ## Nên đọc gì?
 
 | Muốn làm gì? | Tài liệu |
 | --- | --- |
 | Build/check môi trường, dbt debug, đăng nhập PG | [Docker runbook](docs/docker.md) |
-| Viết DDL, bootstrap 4 CSV và extract Bronze hôm nay | [Plan thực hành](docs/plans/2026-10-24-ddl-bootstrap-extract.md) |
+| Bootstrap 4 CSV, extract Bronze và hiểu code loader | [Plan thực hành](docs/plans/2026-10-24-bootstrap-extract.md) |
 | Hiểu Docker/DuckDB, ETL/ELT, source/warehouse và recovery | [Architecture + data flow](docs/architecture.md) |
 | Xác định grain, metrics, models và tests | [Data modeling](docs/data-modeling.md) |
 | Chọn câu hỏi và cách viết insight | [15 câu hỏi kinh doanh](docs/context.md) |

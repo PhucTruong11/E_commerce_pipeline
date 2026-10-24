@@ -1,6 +1,6 @@
 # Data modeling và grain
 
-> Cập nhật 2026-10-23: PostgreSQL là nguồn; models dự kiến trong DuckDB qua dbt Core + dbt-duckdb. Chưa có SQL models hoặc profiling nghiệp vụ đầy đủ; inventory cấu trúc CSV đã kiểm tra riêng.
+> Cập nhật 2026-10-24: loader đã implement/fixture-test; schema/types/PK/null/orphans đã kiểm trên CSV. Business SQL models và semantic profiling vẫn chưa hoàn thiện.
 
 ![Model flow](diagrams/model-flow.svg)
 
@@ -44,7 +44,7 @@ Dedup không phải mặc định dùng `ROW_NUMBER()` rồi lấy bất kỳ d�
 | `int_order_products` | Một order key × product code | Distinct sản phẩm trước basket |
 | `int_order_product_pairs` | Một order key × cặp sản phẩm | Self-join với `product_a < product_b` |
 
-Không để inner join âm thầm làm mất sales; không để duplicate dimension nhân doanh thu. Policy unknown phải được đo đếm và có ngưỡng chấp nhận được ghi trong config.
+Baseline có 0 sales orphan customer, 2 orphan product và 2 orphan region (các tập có thể chồng nhau). Source/Bronze giữ toàn bộ và báo counts, không tạo FK cứng. Silver dùng LEFT JOIN và cờ unknown; chưa tự tạo dimension member giả. Không để inner join âm thầm làm mất sales; không để duplicate dimension nhân doanh thu. Policy unknown phải được đo đếm và có ngưỡng chấp nhận được ghi trong config.
 
 ## 5. DuckDB Gold / marts · facts và aggregates
 

@@ -6,6 +6,10 @@ $localSecrets = Join-Path $projectRoot '.local/secrets'
 New-Item -ItemType Directory -Path $localSecrets -Force | Out-Null
 foreach ($name in @('owner', 'reader')) {
     $secretPath = Join-Path $localSecrets "$name.password"
+    if ((Test-Path -LiteralPath $secretPath) -and
+        -not (Test-Path -LiteralPath $secretPath -PathType Leaf)) {
+        throw 'A secret path is a directory. Restore the provisioned password file before continuing.'
+    }
     if (-not (Test-Path -LiteralPath $secretPath)) {
         $bytes = [byte[]]::new(32)
         [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)

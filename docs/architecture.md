@@ -1,13 +1,13 @@
 # Kiến trúc và data flow
 
-**Trạng thái 24/10/2026:** Docker runtime và PostgreSQL database/roles đã sẵn sàng; schema nguồn còn rỗng. Bootstrap, extraction, dbt models và DAG chưa triển khai. [Plan thực hành hôm nay](plans/2026-10-24-ddl-bootstrap-extract.md) hướng dẫn viết DDL → bootstrap → Bronze; [Docker runbook](docker.md) là nơi chạy các lệnh môi trường đã có.
+**Trạng thái 24/10/2026:** bootstrap/extractor đã triển khai, image đã build và 10 test fixture đạt. Đã nạp 100.889 dòng vào bốn bảng PostgreSQL, retry skipped và extract sang DuckDB Bronze đạt đối soát hash/counts/nulls/totals, mở lại read-only thành công. dbt models, Gold publish và DAG chưa triển khai. [Plan thực hành hôm nay](plans/2026-10-24-bootstrap-extract.md) hướng dẫn bootstrap tự tạo bảng → extract Bronze; [Docker runbook](docker.md) là nơi chạy các lệnh môi trường đã có.
 
 ## 1. Luồng tổng thể
 
 ```mermaid
 flowchart TB
-    CSV["4 CSV gốc<br/>read-only + SHA-256"] --> CHECK["Python validate<br/>headers, types, PK/FK, Decimal/date"]
-    CHECK --> BOOT["Bootstrap bằng ecom_owner<br/>DDL + 4 COPY + ledger, cùng transaction"]
+    CSV["4 CSV gốc<br/>read-only + SHA-256"] --> CHECK["Python validate<br/>headers, types, PK, orphan counts, Decimal/date"]
+    CHECK --> BOOT["Bootstrap bằng ecom_owner<br/>tạo bảng từ contract + 4 COPY + ledger"]
     BOOT --> PG[("Shared PostgreSQL<br/>ecom_source_dev.e_commerce")]
     PG --> EX["Extract bằng ecom_reader<br/>một REPEATABLE READ READ ONLY snapshot"]
     EX --> B[("DuckDB candidate riêng<br/>bronze: 4 bảng + extraction lineage")]
@@ -74,13 +74,13 @@ dbt/
 
 Tên đúng là **bronze**. Ingestion Python tạo các bảng physical `bronze.customer/product/region/ecom_sales`; dbt khai báo chúng bằng `source('bronze', '...')`, không nạp lại CSV. Silver và Gold dùng `ref()` theo dependency giữa models. Staging/intermediate là **vai trò model trong Silver**; không còn là hai physical schemas riêng. `dim_*`, `fct_*`, `mart_*` vẫn diễn tả grain/ý nghĩa bảng trong Gold.
 
-Target schema là `silver`; config folder và macro giữ tên physical `silver`/`gold`, tránh mặc định dbt ghép thành `silver_silver`/`silver_gold`. Mỗi run/user dùng candidate file riêng nên không dùng schema prefix để cách ly cùng một file dùng chung. Bronze hiện mới có declarations; chưa có dữ liệu hoặc business SQL models. [dbt custom schemas](https://docs.getdbt.com/docs/build/custom-schemas).
+Target schema là `silver`; config folder và macro giữ tên physical `silver`/`gold`, tránh mặc định dbt ghép thành `silver_silver`/`silver_gold`. Mỗi run/user dùng candidate file riêng nên không dùng schema prefix để cách ly cùng một file dùng chung. Bronze được tạo bởi extractor; business SQL models Silver/Gold chưa triển khai. [dbt custom schemas](https://docs.getdbt.com/docs/build/custom-schemas).
 
 ## 6. Bootstrap, snapshot và lineage
 
 Bootstrap cả bốn bảng + ledger trong một transaction bằng owner non-superuser. Ledger chứa fingerprint/version/counts; cùng input thì skip, input khác cần explicit new-baseline workflow. Không reset nguồn mỗi refresh vì có thể xóa OLTP changes được tạo sau initial load.
 
-Extractor dùng reader non-superuser, một connection/transaction `REPEATABLE READ READ ONLY` cho bốn bảng. Named cursor đọc batch, giữ Decimal/date; counts/keys/nulls/totals nguồn lấy trong cùng snapshot để đối chiếu candidate. Reader không được ghi source hoặc đọc ledger riêng trong `pipeline_meta`. Không hứa distributed transaction giữa PG và DuckDB.
+Extractor dùng reader non-superuser, một connection/transaction `REPEATABLE READ READ ONLY` cho bốn bảng. Named cursor đọc batch 1000 dòng, giữ Decimal/date; hash toàn giá trị business theo PK, counts/nulls/totals lấy trong cùng snapshot để đối chiếu candidate. Reader không được ghi source hoặc đọc ledger riêng trong `pipeline_meta`. Source/Bronze giữ sales orphan và báo counts (baseline customer=0, product=2, region=2); Silver cần LEFT JOIN và cờ unknown. Không hứa distributed transaction giữa PG và DuckDB.
 
 Phân biệt identifiers:
 
@@ -89,11 +89,11 @@ Phân biệt identifiers:
 - `analysis_run_id`: gắn source snapshot, code, tham số và kết quả tests.
 - `release_id`: Gold release đã được duyệt.
 
-Snapshot token không phải backup có thể đọc lại tùy ý sau khi transaction đóng. Full snapshot/full rebuild là mặc định; chưa cần watermark/lookback hoặc gọi polling là WAL CDC. [Plan implementation](plans/2026-10-24-ddl-bootstrap-extract.md), [OLTP/CDC sau MVP](cdc-plan.md).
+Snapshot token không phải backup có thể đọc lại tùy ý sau khi transaction đóng. Full snapshot/full rebuild là mặc định; chưa cần watermark/lookback hoặc gọi polling là WAL CDC. [Plan implementation](plans/2026-10-24-bootstrap-extract.md), [OLTP/CDC sau MVP](cdc-plan.md).
 
 ## 7. Writer, publication và phục hồi
 
-Mọi CLI/Airflow writers giữ cùng lock trên build volume qua extract → dbt → reconcile → publish. Airflow concurrency 1 không thay file lock cho CLI. Đóng connection DuckDB của loader trước khi dbt subprocess ghi candidate.
+Hiện Bootstrap/Extract giữ cùng file lock trong từng lệnh. Runner refresh khi ghép các stage phải giữ một lock xuyên extract → dbt → reconcile → publish; phần ghép này chưa triển khai. Airflow concurrency 1 không thay file lock cho CLI. Đóng connection DuckDB của loader trước khi dbt subprocess ghi candidate.
 
 Sau dbt/tests/reconciliation, xuất **Gold-only** sang file release mới; không copy nguyên candidate chứa Bronze/customer PII. Đóng writer, kiểm read-only và atomically đổi active pointer trên cùng filesystem. Một request dùng một immutable release; readers không mở build file. Lỗi trước pointer switch giữ bản Gold tốt trước đó, retry tạo candidate mới để không append double count.
 

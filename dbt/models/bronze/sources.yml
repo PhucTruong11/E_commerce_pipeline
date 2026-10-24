@@ -6,7 +6,8 @@ sources:
     description: >-
       PostgreSQL snapshots loaded by the Python extractor into a private DuckDB
       candidate. These declarations describe sources; dbt does not load them.
-      Bootstrap/extraction and source tables are not implemented yet.
+      The real baseline was bootstrapped and a 100889-row Bronze snapshot
+      reconciled on 2026-10-24. Each Extract CLI run creates a new private candidate.
     tables:
       - name: customer
         description: One source customer_id, with extraction lineage; contains private customer data.

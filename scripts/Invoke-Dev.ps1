@@ -1,11 +1,21 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Build','Check','DbtDebug','Versions')][string]$Action = 'Check',
+    [ValidateSet('Build','Check','DbtDebug','Versions','Bootstrap','Extract')][string]$Action = 'Check',
     [ValidateSet('reader','owner')][string]$Role = 'reader',
     [Parameter(Mandatory)][string]$PlatformDir
 )
 $ErrorActionPreference = 'Stop'
+if (($Action -eq 'Bootstrap' -and $Role -ne 'owner') -or
+    ($Action -eq 'Extract' -and $Role -ne 'reader')) {
+    throw 'Bootstrap requires -Role owner; Extract requires -Role reader.'
+}
 $projectRoot = Split-Path -Parent $PSScriptRoot
+if ($Action -ne 'Build') {
+    $secretFile = Join-Path $projectRoot ".local/secrets/$Role.password"
+    if (-not (Test-Path -LiteralPath $secretFile -PathType Leaf)) {
+        throw 'Expected a local password FILE for this role. Restore the provisioned secret; do not regenerate an existing DB password.'
+    }
+}
 $policy = Get-Content -LiteralPath (Join-Path $PlatformDir 'resources.json') -Raw | ConvertFrom-Json
 $task = $policy.projects.ecom.tasks.refresh
 if (-not $task -or $task.memory_mib -le 0 -or $task.cpus -le 0) {
@@ -53,7 +63,7 @@ try {
         & docker compose -f compose.shared.yaml build runtime
     } else {
         $service = if ($Role -eq 'owner') { 'owner' } else { 'runtime' }
-        $command = switch ($Action) { Check { 'check' }; DbtDebug { 'dbt-debug' }; Versions { 'versions' } }
+        $command = switch ($Action) { Check { 'check' }; DbtDebug { 'dbt-debug' }; Versions { 'versions' }; Bootstrap { 'bootstrap' }; Extract { 'extract' } }
         & docker compose -f compose.shared.yaml run --rm --no-deps $service $command
     }
     if ($LASTEXITCODE -ne 0) { throw "Ecom $Action failed." }
