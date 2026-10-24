@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.lock.txt && pip check \
     && chown -R ecom:ecom /state
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
-COPY scripts/environment.py /app/scripts/environment.py
+COPY scripts /app/scripts
 COPY ingestion /app/ingestion
 COPY dbt /app/dbt
 USER 10001:10001
