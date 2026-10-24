@@ -1,55 +1,102 @@
-# Kiến trúc: PostgreSQL → DuckDB → dbt → insight
+# Kiến trúc và data flow
 
-> Quyết định cập nhật 2026-10-23 theo lựa chọn giữ PostgreSQL, DuckDB và dbt. Chỉ sửa thiết kế/tài liệu; chưa provision hoặc deploy.
+**Trạng thái 24/10/2026:** Docker runtime và PostgreSQL database/roles đã sẵn sàng; schema nguồn còn rỗng. Bootstrap, extraction, dbt models và DAG chưa triển khai. [Plan thực hành hôm nay](plans/2026-10-24-ddl-bootstrap-extract.md) hướng dẫn viết DDL → bootstrap → Bronze; [Docker runbook](docker.md) là nơi chạy các lệnh môi trường đã có.
 
-![Data flow](diagrams/data-flow.svg)
+## 1. Luồng tổng thể
 
-## Vai trò từng thành phần
+```mermaid
+flowchart TB
+    CSV["4 CSV gốc<br/>read-only + SHA-256"] --> CHECK["Python validate<br/>headers, types, PK/FK, Decimal/date"]
+    CHECK --> BOOT["Bootstrap bằng ecom_owner<br/>DDL + 4 COPY + ledger, cùng transaction"]
+    BOOT --> PG[("Shared PostgreSQL<br/>ecom_source_dev.e_commerce")]
+    PG --> EX["Extract bằng ecom_reader<br/>một REPEATABLE READ READ ONLY snapshot"]
+    EX --> B[("DuckDB candidate riêng<br/>bronze: 4 bảng + extraction lineage")]
+    B --> S["dbt Silver<br/>staging, chuẩn hóa, join, order grain"]
+    S --> G["dbt Gold<br/>facts, dimensions, analytics marts"]
+    G --> QA["dbt tests + reconciliation<br/>counts, keys, sales/profit, roll-up"]
+    QA --> RELEASE[("Immutable Gold-only release<br/>đóng writer + kiểm read-only")]
+    RELEASE --> INSIGHT["SQL và báo cáo<br/>15 câu hỏi, 3–5 phát hiện có bằng chứng"]
+    AF["Shared Airflow, tích hợp sau<br/>BudgetDockerOperator ecom/refresh"] -.-> EX
+    LOCK["Một writer lock<br/>giữ qua extract → dbt → publish"] -.-> EX
+    LOCK -.-> RELEASE
+```
 
-| Thành phần | Vai trò |
+CSV dùng để **bootstrap nguồn một lần**. PostgreSQL là nguồn để thử query/transaction và, ở chặng sau, controlled OLTP changes/CDC. Python extract dữ liệu nguồn trước khi dbt biến đổi trong DuckDB. Không thêm MinIO/S3, Kafka, Cosmos hoặc Text-to-SQL vào MVP.
+
+## 2. Đây là ETL hay ELT?
+
+**Phần analytics là ELT:** Extract PostgreSQL → Load snapshot vào DuckDB Bronze → Transform bằng dbt trong DuckDB Silver/Gold. Transform nghiệp vụ gồm join dimensions, roll-up order, facts, RFM và monthly/product metrics. Đây là cách dùng ELT theo vị trí thực thi bước transform. [dbt Labs: ELT](https://www.getdbt.com/blog/extract-load-transform).
+
+Bootstrap CSV vẫn có validate/parse types trước khi COPY vào PostgreSQL, nên có thể gọi là **ETL nhẹ cho bước khởi tạo nguồn**. Kiểm tra format, giữ Decimal và từ chối input hỏng không làm toàn bộ luồng analytics trở thành ETL. Không mô tả dự án là “ELT thuần end-to-end” rồi bỏ qua bước chuẩn bị nguồn này.
+
+## 3. Sao không dùng PostgreSQL cho tất cả?
+
+**Hoàn toàn làm được.** Khoảng 100.889 dòng hiện tại không tự tạo lý do bắt buộc phải thêm một engine. Có thể dùng PostgreSQL cho source + các schemas Bronze/Silver/Gold và dbt-postgres; kiến trúc sẽ ít thành phần hơn. Chưa benchmark nên không khẳng định DuckDB nhanh hơn PostgreSQL với project này.
+
+| Cách làm | Giá trị | Phần phải quản lý |
+| --- | --- | --- |
+| PostgreSQL + dbt-postgres | Ít engine, không cần copy snapshot sang file analytics | Query phân tích và nguồn cùng dùng tài nguyên PostgreSQL; vẫn cần schema/quyền/transaction rõ |
+| PostgreSQL source + DuckDB/dbt-duckdb | Học ranh giới nguồn/phân tích, snapshot consistency, embedded OLAP, runtime isolation | Thêm bản sao dữ liệu, đối soát giữa hai engine, file/lock/backup và adapter riêng |
+
+Hiện giữ phương án thứ hai vì **mục tiêu học PostgreSQL, DuckDB và dbt**, và muốn phần lớn query dbt chạy trong runtime có RAM/CPU riêng thay vì trên PostgreSQL chung. Extraction vẫn dùng tài nguyên PG: không phải cách tách tải tuyệt đối. Nếu sau này ưu tiên tối giản/vận hành một engine, chuyển sang PostgreSQL-only là lựa chọn hợp lý; cần review adapter, schemas, tests và resource budget trước khi đổi, không đổi âm thầm trong lượt dọn repo.
+
+DuckDB được thiết kế cho analytical queries và mặc định hỗ trợ embedded/in-process; đó là lý do phù hợp với bài lab local này, không phải chứng minh hiệu năng cụ thể. [Why DuckDB](https://duckdb.org/why_duckdb).
+
+## 4. DuckDB có chạy trong Docker không?
+
+**Có, runtime hiện đã chạy DuckDB trong Docker.** Image `ecom-runtime:local-v1` chứa Python + psycopg + DuckDB + dbt-duckdb. Thư viện DuckDB chạy bên trong process Python/dbt; file `.duckdb` nằm trong named volume, không cần thêm một service DuckDB thường trực hoặc cổng database mới. [DuckDB Docker](https://duckdb.org/docs/2.0/operations_manual/duckdb_docker.html).
+
+| Thành phần | Nơi lưu/chạy |
 | --- | --- |
-| 4 CSV gốc | Snapshot bootstrap, giữ read-only và checksum |
-| PostgreSQL dùng chung | Database nguồn riêng; ban đầu chứa snapshot CSV, sau có thể luyện OLTP |
-| Python + psycopg | Bootstrap bằng COPY; extract một snapshot nhất quán qua read-only transaction |
-| DuckDB | Warehouse local, lưu Bronze và các lớp phân tích |
-| dbt Core + dbt-duckdb | Silver staging/intermediate, Gold facts/marts, tests và docs |
-| Docker runtime | Một image chạy bootstrap/extract/build; DuckDB là file trong volume, không thêm server |
-| Airflow hiện có | Một DAG mỏng gọi runtime qua BudgetDockerOperator |
-| SQL/report | Đầu ra chính: 15 câu hỏi và 3–5 phát hiện có bằng chứng |
+| CSV gốc | `data/bootstrap/`, bind mount `/input` read-only |
+| PostgreSQL source | Database `ecom_source_dev` trên warehouse hiện có |
+| Candidate DuckDB | `/state/build/candidates/<extraction_id>/ecom_analytics.duckdb`, volume `ecom-dev-build` |
+| dbt code | `dbt/` trong repo → `/app/dbt` trong image |
+| dbt logs/reports | Volume `ecom-dev-artifacts`, theo run |
+| Gold releases | Volume `ecom-dev-releases`, chỉ publish khi checks đạt |
 
-Bỏ MinIO/S3 khỏi MVP. Chưa cần dlt, Kafka, Cosmos hoặc chatbot. Dùng Python để giữ ingestion nhỏ; thêm framework khi có nhu cầu cụ thể.
+Container runtime kết thúc và tự xóa; named volume vẫn còn. `stop` không xóa dữ liệu, `down -v` có thể xóa volumes. DuckDB của TikTok/Shopee giữ riêng file, `.venv`, locks và Dagster; không dùng chung file hoặc trỏ e-commerce vào volume/path của TikTok.
 
-DuckDB bổ sung một bước sao chép dữ liệu so với dùng toàn PostgreSQL. Đổi lại, dự án học rõ ranh giới nguồn giao dịch và kho phân tích; dbt không chạy các aggregation trên PostgreSQL chung. Không tuyên bố stack này nhanh hơn ở mọi quy mô. Adapter dự kiến là [dbt-duckdb cho dbt Core](https://github.com/duckdb/dbt-duckdb); pin bộ phiên bản khi implementation.
+## 5. Cấu trúc dbt và schemas thật
 
-## Ba chặng
+```text
+dbt/
+├── dbt_project.yml
+├── models/
+│   ├── bronze/sources.yml       # khai báo 4 nguồn do Python nạp
+│   ├── silver/                  # staging + intermediate models
+│   └── gold/                    # facts/dimensions/analytics marts
+├── analyses/                    # SQL trả lời Q01–Q15
+├── macros/generate_schema_name.sql
+├── tests/
+└── seeds/reference/
+```
 
-1. **Snapshot và insight:** CSV bootstrap một lần vào PostgreSQL → full extract → DuckDB Bronze → dbt Silver/Gold → SQL/report.
-2. **OLTP lab:** thêm các thao tác insert/update/delete có kiểm soát; kiểm thử đơn cũ sửa giá, khách/sản phẩm mới, xóa dòng. Full snapshot vẫn dùng được.
-3. **CDC tùy chọn:** khi hai chặng đầu ổn, capture thay đổi nguồn và apply idempotently vào Bronze, rồi rebuild models chịu ảnh hưởng.
+Tên đúng là **bronze**. Ingestion Python tạo các bảng physical `bronze.customer/product/region/ecom_sales`; dbt khai báo chúng bằng `source('bronze', '...')`, không nạp lại CSV. Silver và Gold dùng `ref()` theo dependency giữa models. Staging/intermediate là **vai trò model trong Silver**; không còn là hai physical schemas riêng. `dim_*`, `fct_*`, `mart_*` vẫn diễn tả grain/ý nghĩa bảng trong Gold.
 
-Không gọi polling theo updated_at là WAL-based CDC. CSV không đổi thì không tự sinh giao dịch hoặc change events. Có thể học CDC bằng nguồn mô phỏng, nhưng ghi rõ thay đổi là do simulator tạo. [CDC plan](cdc-plan.md).
+Target schema là `silver`; config folder và macro giữ tên physical `silver`/`gold`, tránh mặc định dbt ghép thành `silver_silver`/`silver_gold`. Mỗi run/user dùng candidate file riêng nên không dùng schema prefix để cách ly cùng một file dùng chung. Bronze hiện mới có declarations; chưa có dữ liệu hoặc business SQL models. [dbt custom schemas](https://docs.getdbt.com/docs/build/custom-schemas).
 
-## Database, schemas và quyền
+## 6. Bootstrap, snapshot và lineage
 
-PostgreSQL đề xuất: **ecom_source_dev**, schema e_commerce chứa 4 bảng nguồn; pipeline_meta giữ bootstrap inventory. Tên này thay đề xuất ecom_analytics_dev trước đó, chưa tạo hoặc rename database nào.
+Bootstrap cả bốn bảng + ledger trong một transaction bằng owner non-superuser. Ledger chứa fingerprint/version/counts; cùng input thì skip, input khác cần explicit new-baseline workflow. Không reset nguồn mỗi refresh vì có thể xóa OLTP changes được tạo sau initial load.
 
-- ecom_owner: bootstrap/OLTP writer không superuser, chỉ database riêng.
-- ecom_reader: extraction login chỉ đọc 4 bảng nguồn, không quyền ghi.
-- Database limit đề xuất 8 connections; owner 4, reader 2. CDC cần role/permissions riêng, chưa cấp.
-- PostgreSQL chung: warehouse-laplaptech:5432, network laplaptech-lab. Không dùng metadata Airflow hoặc credentials/config LaplapTech.
-- Warehouse DuckDB: bronze (4 nguồn + extraction lineage), staging, intermediate, marts và pipeline_meta riêng. Staging/intermediate chủ yếu views, facts/marts tables.
-- Reader báo cáo đọc file Gold-only được publish; không lấy tài khoản PG extractor làm tài khoản BI.
+Extractor dùng reader non-superuser, một connection/transaction `REPEATABLE READ READ ONLY` cho bốn bảng. Named cursor đọc batch, giữ Decimal/date; counts/keys/nulls/totals nguồn lấy trong cùng snapshot để đối chiếu candidate. Reader không được ghi source hoặc đọc ledger riêng trong `pipeline_meta`. Không hứa distributed transaction giữa PG và DuckDB.
 
-PG cần profile kiểu/PK/FK trước khi enforce DDL. Không biến dataset này thành hệ OLTP production chỉ bằng cách nạp CSV; nó là nguồn mô phỏng phục vụ học.
+Phân biệt identifiers:
 
-## Snapshot, writer và serving
+- `bootstrap_id`: nhận diện CSV baseline + contract version.
+- `extraction_id`: lần đọc snapshot nguồn PG; không suy ra từ CSV khi nguồn đã thay đổi.
+- `analysis_run_id`: gắn source snapshot, code, tham số và kết quả tests.
+- `release_id`: Gold release đã được duyệt.
 
-Bootstrap không chạy lại để ghi đè giao dịch mỗi lần refresh. CSV mới cần explicit reset/new-baseline workflow; khi CDC hoạt động phải thiết kế cutover riêng.
+Snapshot token không phải backup có thể đọc lại tùy ý sau khi transaction đóng. Full snapshot/full rebuild là mặc định; chưa cần watermark/lookback hoặc gọi polling là WAL CDC. [Plan implementation](plans/2026-10-24-ddl-bootstrap-extract.md), [OLTP/CDC sau MVP](cdc-plan.md).
 
-Full extract đọc cả 4 bảng bằng **cùng connection và REPEATABLE READ READ ONLY transaction**. Mỗi lần tạo candidate DuckDB mới, COPY/insert theo batch; đối soát count/keys/sales/profit trước dbt. Không hứa transaction phân tán giữa PostgreSQL và DuckDB.
+## 7. Writer, publication và phục hồi
 
-Một writer giữ runtime file lock trên volume chung từ extract tới publish; Airflow max_active_runs/max_active_tasks=1. Mọi CLI writers dùng cùng lock. Không giữ connection DuckDB Python mở khi dbt subprocess cần ghi cùng file.
+Mọi CLI/Airflow writers giữ cùng lock trên build volume qua extract → dbt → reconcile → publish. Airflow concurrency 1 không thay file lock cho CLI. Đóng connection DuckDB của loader trước khi dbt subprocess ghi candidate.
 
-Sau dbt build và reconciliation, xuất **Gold-only** sang file release mới, đóng writer, kiểm tra read-only và atomically thay active pointer trên cùng filesystem. Reader chọn một release cho cả request; không mở file build. Failed run không đổi pointer. Không chỉ copy nguyên build file vì Bronze/customer PII có thể đi theo.
+Sau dbt/tests/reconciliation, xuất **Gold-only** sang file release mới; không copy nguyên candidate chứa Bronze/customer PII. Đóng writer, kiểm read-only và atomically đổi active pointer trên cùng filesystem. Một request dùng một immutable release; readers không mở build file. Lỗi trước pointer switch giữ bản Gold tốt trước đó, retry tạo candidate mới để không append double count.
 
-Không có MinIO nghĩa là không có raw history ngoài warehouse được giữ. CSV backup chỉ tái lập baseline; thay đổi OLTP sau đó cần PG backup/change journal nếu muốn phục hồi lịch sử. Retention build/release và backup phải rõ, không hứa replay mọi thời điểm.
+Mất build thì rebuild từ nguồn PG hiện tại. CSV chỉ tái lập baseline; để khôi phục lịch sử sau OLTP changes phải có PG backup, snapshot hoặc change journal được giữ lại. Restore scope database project, không reset cluster/volume chung.
+
+RAM limit không phải disk limit: logs, candidates, dbt artifacts, backups và releases vẫn tăng dung lượng. Chưa có retention tự động. Khi triển khai pipeline, giữ active/previous release và evidence cần audit, chỉ dọn orphan candidates sau khi xác nhận không có writer; không `prune --volumes` tùy tiện. Thông tin bí mật/PII không nằm trong Git, logs hoặc XCom; read-only DuckDB cũng không tự là sandbox cho SQL LLM.

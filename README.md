@@ -1,75 +1,70 @@
 # Xóm E-Com · Analytics pipeline
 
-Dự án học **PostgreSQL, DuckDB, dbt, Docker và Airflow** thông qua commercial analytics: doanh thu, lợi nhuận, discount và hành vi mua hàng từ 4 CSV Xóm E-Com.
+Học **PostgreSQL, DuckDB, dbt, Docker và Airflow** qua phân tích sales, profit, discount và hành vi mua hàng từ bốn CSV Xóm E-Com.
 
-**Trạng thái: initial scaffold (2026-10-23).** Đã có cây thư mục, tài liệu/sơ đồ, 4 CSV local và parser kiểm tra cấu trúc CSV. Chưa có bootstrap/extractor hoàn chỉnh, dbt models, Docker runtime hoặc DAG chạy được; chưa tính insight kinh doanh.
+**Môi trường dev đã sẵn sàng:** Docker runtime riêng, dependency lock, database/owner/reader trên PostgreSQL chung và smoke checks. Chưa nạp CSV, viết business models, tính insight hoặc triển khai DAG. Bắt đầu tại [hướng dẫn Docker](docs/docker.md) và [plan thực hành hôm nay](docs/plans/2026-10-24-ddl-bootstrap-extract.md).
 
-## Luồng đã chọn
+## Luồng dự án
 
-![PostgreSQL nguồn tới DuckDB và insight](docs/diagrams/data-flow.svg)
+![Data flow PostgreSQL → DuckDB → dbt](docs/diagrams/data-flow.svg)
 
-**CSV → PostgreSQL nguồn → Python snapshot extraction → DuckDB Bronze → dbt Core + dbt-duckdb → Silver/Gold → SQL và insight.**
+**CSV bootstrap → PostgreSQL source → Python consistent snapshot → DuckDB Bronze → dbt Silver/Gold → SQL và báo cáo.** Phần analytics là ELT; bootstrap có validate/parse trước load. PostgreSQL-only cũng đáp ứng quy mô hiện tại; giữ thêm DuckDB để học tách nguồn/phân tích và embedded OLAP. Xem [lý do, trade-offs và data flow chi tiết](docs/architecture.md).
 
-- Giữ nguyên CSV gốc trong `data/bootstrap/`, mount read-only; checksum nhận diện bộ đầu vào.
-- Python dùng csv/psycopg để bootstrap PostgreSQL một lần và extract snapshot nhất quán sang DuckDB.
-- PostgreSQL dùng chung chứa database nguồn riêng; DuckDB file riêng chứa Bronze, staging/intermediate và Gold marts.
-- dbt Core + dbt-duckdb xử lý SQL, lineage, documentation và data tests trong DuckDB.
-- Docker đóng gói runtime của dự án. Airflow hiện có gọi runtime sau khi luồng chạy độc lập đã ổn định.
-- SQL analyses và báo cáo insight là đầu ra MVP. Dashboard thêm sau khi metric đã chốt.
-
-**Giữ PostgreSQL + DuckDB + dbt** để học ranh giới nguồn và phân tích. Snapshot/insight trước, OLTP lab và CDC là chặng mở rộng. Chưa dùng MinIO/S3, dlt, Kafka, Cosmos hoặc Text-to-SQL. Xem [quyết định kiến trúc](docs/architecture.md).
+DuckDB đã chạy trong container runtime, file dữ liệu giữ trên volume riêng; không cần thêm DuckDB server. PostgreSQL là service dùng chung, mỗi project có database/user riêng. Không dùng file DuckDB hoặc `.venv` của TikTok/Shopee cho repo này.
 
 ## Dữ liệu và grain
 
-Nguồn: [Xóm E-Com](https://dataset.xomdata.com/datasets/schema/e_commerce). Inventory local đã ghi nhận:
+Nguồn: [Xóm E-Com](https://dataset.xomdata.com/datasets/schema/e_commerce). Inventory baseline local:
 
-| CSV | Dòng dữ liệu | Khóa ứng viên | Grain cần giữ |
-| --- | ---: | --- | --- |
-| `ecom_sales.csv` | 51.290 | `row_id` | Một dòng bán hàng nguồn |
-| `customer.csv` | 17.415 | `customer_id` | Một khách hàng nguồn |
-| `product.csv` | 28.356 | `product_code` | Một mã sản phẩm nguồn |
-| `region.csv` | 3.828 | `region_code` | Một mã địa lý nguồn |
+| CSV | Dòng | Khóa ứng viên / grain |
+| --- | ---: | --- |
+| `customer.csv` | 17.415 | Một `customer_id` |
+| `product.csv` | 28.356 | Một `product_code`; cần xác nhận product identity |
+| `region.csv` | 3.828 | Một `region_code` |
+| `ecom_sales.csv` | 51.290 | Một `row_id`, không phải một order |
 
-Tổng **100.889 dòng, khoảng 8,76 MiB**. Kiểm tra trước đã xác nhận headers, độ rộng dòng và các khóa ứng viên không rỗng/trùng. Chưa xác nhận đầy đủ kiểu dữ liệu, FK, scope order ID hoặc ý nghĩa sales/profit. Không đồng nhất product code với SKU trước khi profiling.
+Tổng **100.889 dòng, khoảng 8,76 MiB**. Parser đã kiểm headers/width/candidate keys; types, FK, order scope, currency và ý nghĩa sales/profit còn cần xác minh. Không dedup tùy ý theo `order_id + product_code` hoặc công bố insight khi chưa có kiểm chứng.
 
-## Ưu tiên insight
+## Cấu trúc chính
 
-1. Chốt grain, ngày dữ liệu, đơn vị tiền tệ và định nghĩa metric.
-2. Bootstrap đủ 4 bảng nguồn; extract cùng snapshot PG vào DuckDB Bronze; retry không nhân đôi.
-3. Xây `fct_order_lines`, `fct_orders` và ba mart đầu tiên: monthly performance, product performance, customer RFM.
-4. Trả lời [15 câu hỏi](docs/context.md) bằng SQL; basket làm sau khi xác nhận product identity và đủ đơn đa sản phẩm.
-5. Viết 3–5 phát hiện có bằng chứng, tác động kinh doanh, đề xuất hành động và giới hạn diễn giải.
-6. Đóng gói runtime, tích hợp DAG dùng chung; dashboard là bước sau.
+```text
+e_commerce/
+├── compose.shared.yaml       # runtime reader/owner tạm thời
+├── requirements.in          # dependencies trực tiếp
+├── requirements.lock.txt    # bộ phiên bản đã ghim
+├── config/                  # env/profile mẫu; không có password thật
+├── infra/docker/            # Dockerfile runtime
+├── infra/postgres/init/     # DDL nguồn sẽ viết
+├── ingestion/               # CSV contract, snapshot loader sẽ viết
+├── scripts/                 # setup/provision/preflight/check; bootstrap sẽ viết
+├── dbt/
+│   ├── models/bronze/       # source declarations, Python nạp dữ liệu
+│   ├── models/silver/       # staging và joins/intermediate
+│   ├── models/gold/         # facts/dimensions/analytics marts
+│   ├── analyses/            # SQL Q01–Q15; dbt build không tự chạy analyses
+│   ├── macros/, tests/, seeds/reference/
+├── orchestration/dags/      # DAG chưa triển khai
+├── data/bootstrap/          # CSV local, không commit/bake vào image
+├── analysis/reports/        # báo cáo đã rà PII, chưa có insight
+├── tests/                   # unit/integration/synthetic fixtures
+└── docs/                    # kiến trúc, runbook, modeling và plan
+```
 
-Full snapshot và full rebuild là mặc định ban đầu. Không tạo lịch chạy hai lần/ngày cho dữ liệu không thay đổi; DAG trước mắt chạy thủ công khi input hoặc SQL thay đổi.
+`.env`, `.local/`, input CSV, `.duckdb`, artifacts/logs và dumps không commit. Docker dùng `ecom-dev-build`, `ecom-dev-releases`, `ecom-dev-artifacts`; các volume không nằm trong source. Config local nằm trong `.local/secrets/`; runtime không dùng credential admin LapLapTech.
 
-## Platform và Docker
+## Nên đọc gì?
 
-Dùng chung Airflow/PostgreSQL theo [AGENTS.md](AGENTS.md). Database đề xuất mới là **`ecom_source_dev`**, writer/owner `ecom_owner`, extraction reader `ecom_reader`; các tên này **chưa được provision**. Không sử dụng Airflow metadata hoặc credentials của LaplapTech.
-
-Không thêm PostgreSQL container trên máy hiện tại. DuckDB là embedded engine trong runtime tạm thời, không phải server riêng; mọi task phải đăng ký ngân sách và chạy qua `BudgetDockerOperator` / pool `platform_memory`. Extraction dùng tài nguyên PostgreSQL chung; dbt/DuckDB dùng RAM/CPU runtime và dung lượng spill volume, cần đo khi triển khai.
-
-Người clone chưa có platform có thể dùng Compose gồm một PostgreSQL và runtime ở chặng packaging; Airflow là tùy chọn. **Hiện chưa có lệnh quickstart chạy được.**
-
-## Tài liệu
-
-Buổi thực hành tiếp theo: [Plan ngày 01 · kiến thức, cách làm và code mẫu](docs/plans/2026-10-23-day-01.md).
-
-| Tài liệu | Nội dung |
+| Muốn làm gì? | Tài liệu |
 | --- | --- |
-| [Architecture](docs/architecture.md) | Phân vai PostgreSQL nguồn, DuckDB analytics và dbt |
-| [Data flow](docs/data-flow.md) | Snapshot, transaction, retry và build |
-| [Ingestion plan](docs/ingestion-plan.md) | Inventory, file cần viết, ví dụ có chú thích |
-| [Data modeling](docs/data-modeling.md) | Grain, metrics và quality gates |
-| [Business context](docs/context.md) | 15 câu hỏi và đầu ra phân tích |
-| [Roadmap](docs/roadmap.md) | Thứ tự làm và điều kiện hoàn thành |
-| [Docker plan](docs/docker-plan.md) | Runtime, cấu hình và ngân sách dùng chung |
-| [Airflow integration](docs/airflow-docker.md) | Contract DAG/operator |
-| [Project structure](docs/project-structure.md) | Source hiện có và file dự kiến |
-| [Commercial analysis](analysis/README.md) | Quy ước SQL và báo cáo insight |
-| [Operations](docs/operations.md) | Retry, restore và giới hạn phục vụ |
-| [OLTP và CDC](docs/cdc-plan.md) | Chặng mở rộng, WAL/checkpoint/delete và resource gates |
+| Build/check môi trường, dbt debug, đăng nhập PG | [Docker runbook](docs/docker.md) |
+| Viết DDL, bootstrap 4 CSV và extract Bronze hôm nay | [Plan thực hành](docs/plans/2026-10-24-ddl-bootstrap-extract.md) |
+| Hiểu Docker/DuckDB, ETL/ELT, source/warehouse và recovery | [Architecture + data flow](docs/architecture.md) |
+| Xác định grain, metrics, models và tests | [Data modeling](docs/data-modeling.md) |
+| Chọn câu hỏi và cách viết insight | [15 câu hỏi kinh doanh](docs/context.md) |
+| Theo dõi thứ tự làm và checkpoint | [Roadmap](docs/roadmap.md) |
+| Tích hợp Airflow sau khi CLI ổn | [Airflow contract](docs/airflow-docker.md) |
+| Mở rộng OLTP/CDC sau snapshot | [CDC plan](docs/cdc-plan.md) |
 
-Không commit CSV khách hàng, credentials, database dump hoặc artifacts chứa PII. Các mẫu dlt/MinIO/Parquet và scaffold không dùng đã được đưa khỏi cây source vào vùng khôi phục local được ignore. Tài liệu hiện hành phản ánh kiến trúc đang chọn.
+Ưu tiên `fct_order_lines`, `fct_orders` và monthly/product/RFM marts; trả lời câu hỏi bằng SQL rồi viết 3–5 phát hiện có bằng chứng. Dashboard và basket làm sau khi metric/product identity đủ rõ. Không đặt lịch hai lần/ngày chỉ để chạy lại CSV tĩnh.
 
-Kỹ thuật tham khảo: [Psycopg COPY](https://www.psycopg.org/psycopg3/docs/basic/copy.html), [dbt-duckdb](https://github.com/duckdb/dbt-duckdb), [dbt data tests](https://docs.getdbt.com/docs/build/data-tests).
+Máy maintainer dùng shared platform theo [AGENTS.md](AGENTS.md), database `ecom_source_dev`, roles `ecom_owner`/`ecom_reader`, resource `ecom/refresh`. Người clone phải cấu hình platform/credentials riêng; Compose standalone và quickstart end-to-end chưa triển khai. Không thêm MinIO, Kafka, Cosmos hoặc chatbot vào MVP hiện tại.

@@ -30,7 +30,7 @@
 <text x="86" y="505" class="name">ecom_sales · one row_id</text>
 <path class="edge" d="M392 382 H452"/>
 <rect x="452" y="220" width="392" height="322" rx="20" fill="#282b40" stroke="#8b7daf" stroke-width="2"/>
-<text x="476" y="260" class="heading">staging · typed views</text>
+<text x="476" y="260" class="heading">Silver · staging views</text>
 <text x="476" y="308" class="name">stg_customers</text>
 <text x="476" y="352" class="name">stg_products</text>
 <text x="476" y="396" class="name">stg_regions</text>
@@ -39,7 +39,7 @@
 <text x="476" y="516" class="small">No arbitrary dedup or hidden exclusions</text>
 <path class="edge" d="M844 382 H876 V333 H902"/>
 <rect x="902" y="220" width="636" height="322" rx="20" fill="#19283b" stroke="#708bab" stroke-width="2"/>
-<text x="926" y="260" class="heading">intermediate → core facts in marts</text>
+<text x="926" y="260" class="heading">Silver joins → Gold facts</text>
 <rect x="926" y="286" width="588" height="92" rx="12" fill="#263b4d" stroke="#547d98"/>
 <text x="950" y="321" class="name">fct_order_lines</text>
 <text x="950" y="351" class="body">One row_id · dimension joins must not fan out</text>
@@ -50,7 +50,7 @@
 <path class="edge" d="M1220 542 V596 H287 V654"/>
 <path class="edge" d="M1220 596 H801 V654"/>
 <path class="edge" d="M1220 596 H1313 V654"/>
-<text x="62" y="576" class="eyebrow">FIRST THREE ANALYTICS MARTS · RECONCILE BEFORE REPORTING</text>
+<text x="62" y="576" class="eyebrow">GOLD ANALYTICS MARTS · RECONCILE BEFORE REPORTING</text>
 <rect x="62" y="670" width="450" height="151" rx="18" fill="#353121" stroke="#b6a65d" stroke-width="2"/>
 <text x="86" y="710" class="heading">Monthly performance</text>
 <text x="86" y="746" class="body">Month × market × segment</text>

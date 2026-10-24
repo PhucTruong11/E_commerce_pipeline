@@ -1,15 +1,16 @@
 # Roadmap học tech và commercial analytics
 
-> Cập nhật 2026-10-23. Checklist tách bằng chứng đã có và việc chưa làm; không phải lệnh triển khai.
+> Cập nhật 2026-10-24. Checklist tách bằng chứng đã có và việc chưa làm; không phải lệnh triển khai.
 
-Chi tiết buổi thực hành đầu: [Plan ngày 01](plans/2026-10-23-day-01.md), gồm kiến thức, thứ tự làm, file đích, code mẫu và checkpoint CSV → PostgreSQL → DuckDB Bronze.
+Buổi thực hành hiện tại: [Plan 24/10 · DDL, bootstrap và snapshot extraction](plans/2026-10-24-ddl-bootstrap-extract.md). Môi trường đã sẵn sàng; đi từ contract/DDL tới PostgreSQL và candidate DuckDB, có code mẫu cùng checkpoint trong một file.
 
 ## 0. Initial scaffold
 
 - [x] Tạo thư mục config, infra Docker/Airflow, ingestion, dbt, orchestration, tests và commercial reports.
 - [x] Giữ 4 CSV, parser và tài liệu hiện hành; đưa mẫu/scaffold không dùng khỏi source vào vùng khôi phục local.
 - [x] Cập nhật tree, trạng thái implementation và ignore rules hiện có.
-- [ ] Viết bootstrap/extractor và thiết lập môi trường ở lượt triển khai tiếp theo.
+- [x] Thiết lập môi trường Docker dev, DB/roles/schema rỗng và kiểm tra quyền/kết nối.
+- [ ] Viết bootstrap/extractor ở bước tiếp theo.
 
 ## 1. Input và contract
 
@@ -23,11 +24,12 @@ Chi tiết buổi thực hành đầu: [Plan ngày 01](plans/2026-10-23-day-01.m
 
 ## 2. Source, Bronze và runtime nhỏ
 
-- [ ] Tạo runtime Docker Python + psycopg + dbt-duckdb, dependencies được ghim.
-- [ ] Khi chuyển sang implementation: cấp database/users riêng, DDL source/meta và identity guard.
+- [x] Tạo runtime Docker Python + psycopg + dbt-duckdb, dependencies được ghim.
+- [x] Cấp database/users/schema riêng và identity guard; [runbook](docker.md).
+- [ ] DDL của bốn bảng nghiệp vụ; chưa bootstrap dữ liệu.
 - [ ] Bootstrap COPY đủ 4 bảng một lần; inventory. Extract một PG snapshot sang candidate DuckDB; không reset nguồn mỗi refresh.
 - [ ] Thử input lỗi, retry, source thay đổi đồng thời, writer lock và publish failure.
-- [ ] Smoke kết nối bằng tài khoản project, không dùng admin runtime.
+- [x] Smoke kết nối bằng owner/reader riêng, không dùng admin runtime; DuckDB và dbt debug.
 
 **Đạt khi:** bootstrap/extract đúng snapshot, không duplicate, failed build giữ Gold trước. Không thêm MinIO; OLTP/CDC là chặng sau.
 
@@ -53,7 +55,7 @@ Chi tiết buổi thực hành đầu: [Plan ngày 01](plans/2026-10-23-day-01.m
 
 ## 5. Airflow và chia sẻ repo
 
-- [ ] Đăng ký task ecom trong registry vận hành sau khi platform đã drain.
+- [x] Đăng ký ecom/refresh 1024 MiB/1 CPU trong registry sau khi xác nhận platform đã drain; chưa deploy DAG.
 - [ ] DAG `ecom_analytics_refresh`, một task runtime, concurrency 1, dùng BudgetDockerOperator.
 - [ ] Test lock, retry, timeout, dbt fail và resource limits.
 - [ ] CLI Compose standalone gồm PostgreSQL + runtime cho người chưa có platform.

@@ -1,0 +1,19 @@
+name: ecom
+version: '0.1.0'
+config-version: 2
+profile: ecom
+model-paths: [models]
+analysis-paths: [analyses]
+test-paths: [tests]
+macro-paths: [macros]
+seed-paths: [seeds]
+clean-targets: [target, dbt_packages]
+
+models:
+  ecom:
+    silver:
+      +schema: silver
+      +materialized: view
+    gold:
+      +schema: gold
+      +materialized: table

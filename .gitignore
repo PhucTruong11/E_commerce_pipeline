@@ -50,9 +50,9 @@ webserver_config.py
 standalone_admin_password.txt
 orchestration/logs/
 .dbt/
-warehouse/target/
-warehouse/dbt_packages/
-warehouse/logs/
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
 logs/
 *.log
 *.log.*
@@ -90,7 +90,7 @@ logs/
 # Only reviewed synthetic fixtures / reference seeds may be committed.
 # Never put downloaded dataset rows or customer data in these paths.
 !/tests/fixtures/synthetic/**/*.csv
-!/warehouse/seeds/reference/**/*.csv
+!/dbt/seeds/reference/**/*.csv
 
 # Project-local storage mounts, generated reports and scratch files
 /volumes/
