@@ -1,4 +1,8 @@
-"""Read one PG snapshot into a new, reconciled DuckDB Bronze candidate."""
+"""Read one PG snapshot into a new, reconciled DuckDB raw candidate.
+
+Python owns only raw tables. dbt will create Bronze/Silver/Gold separately;
+an extract never creates those schemas or rewrites an older candidate.
+"""
 import os
 from pathlib import Path
 
@@ -16,19 +20,19 @@ def quoted(name):
     return '"' + name.replace('"', '""') + '"'
 
 
-def create_bronze(duck):
-    duck.execute('CREATE SCHEMA bronze')
+def create_raw(duck):
+    duck.execute('CREATE SCHEMA raw')
     for table in ORDER:
         fields = [f'{quoted(name)} {kind.replace("text","VARCHAR").replace("numeric","DECIMAL")} '
                   + ('NOT NULL' if required else '') for name,kind,required in columns(table)]
         fields.extend(['_extraction_id VARCHAR NOT NULL', '_extracted_at TIMESTAMPTZ NOT NULL',
                        '_source_table VARCHAR NOT NULL', f'PRIMARY KEY ({quoted(CONTRACTS[table][0])})'])
-        duck.execute(f'CREATE TABLE bronze.{quoted(table)} ({",".join(fields)})')
+        duck.execute(f'CREATE TABLE raw.{quoted(table)} ({",".join(fields)})')
 
 
 def write_batch(duck, table, rows, extraction_id, extracted_at):
     placeholders = ','.join('?' for _ in range(len(CONTRACTS[table][1])+3))
-    statement = f'INSERT INTO bronze.{quoted(table)} VALUES ({placeholders})'
+    statement = f'INSERT INTO raw.{quoted(table)} VALUES ({placeholders})'
     duck.executemany(statement, [tuple(row)+(extraction_id,extracted_at,f'e_commerce.{table}') for row in rows])
 
 
@@ -56,7 +60,7 @@ def extract_tables(pg, write_batch):
 
 def candidate_stats(duck, table):
     names = ','.join(map(quoted,CONTRACTS[table][1]))
-    result = duck.execute(f'SELECT {names} FROM bronze.{quoted(table)} ORDER BY {quoted(CONTRACTS[table][0])}')
+    result = duck.execute(f'SELECT {names} FROM raw.{quoted(table)} ORDER BY {quoted(CONTRACTS[table][0])}')
     stats = TableStats(table)
     while rows := result.fetchmany(1000):
         stats.add(rows)
@@ -93,7 +97,7 @@ def extract():
                           'max_temp_directory_size':'1GB'}
                 with duckdb.connect(str(candidate),config=config) as duck:
                     duck.execute('BEGIN')
-                    create_bronze(duck)
+                    create_raw(duck)
                     snapshot, extracted_at, expected_tables, orphans = extract_tables(pg,
                         lambda table,rows,stamp: write_batch(duck,table,rows,extraction_id,stamp))
                     for table in ORDER:
@@ -108,13 +112,14 @@ def extract():
                 for table in ORDER:
                     if candidate_stats(duck,table) != tables[table]:
                         raise PipelineError(f'Reopened candidate mismatch: table={table}')
-                    lineage = duck.execute(f'''SELECT count(*) FROM bronze.{quoted(table)}
+                    lineage = duck.execute(f'''SELECT count(*) FROM raw.{quoted(table)}
                         WHERE _extraction_id IS DISTINCT FROM ? OR _extracted_at IS DISTINCT FROM ?
                         OR _source_table IS DISTINCT FROM ?''',
                         [extraction_id,extracted_at,f'e_commerce.{table}']).fetchone()[0]
                     if lineage:
                         raise PipelineError(f'Extraction lineage mismatch: table={table}')
-            report = {'status':'validated_bronze', 'extraction_id':extraction_id, 'started_at':started_at,
+            report = {'status':'validated_raw', 'storage_schema':'raw',
+                'extraction_id':extraction_id, 'started_at':started_at,
                 'snapshot':snapshot, 'extracted_at':extracted_at, 'candidate':str(candidate),
                 'contract_version':VERSION, 'tables':tables, 'orphan_counts':orphans,
                 'orphan_policy':'preserve_and_report'}

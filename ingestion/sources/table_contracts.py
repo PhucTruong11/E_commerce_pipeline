@@ -86,7 +86,7 @@ def load_input(input_dir):
         position = sales_headers.index(field)
         keys = {row[CONTRACTS[target][1].index(CONTRACTS[target][0])] for row in datasets[target]}
         orphan[field] = sum(row[position] not in keys for row in datasets['ecom_sales'])
-    # Unknown dimension codes remain in source/Bronze and are reported, never dropped.
+    # Unknown dimension codes remain in source/raw and are reported, never dropped.
     fingerprint = hashlib.sha256(json_text({'version':VERSION, 'schema':schema_signature(),
                                           'files':files}).encode()).hexdigest()
     return datasets, files, orphan, fingerprint

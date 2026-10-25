@@ -1,69 +1,86 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
-<title id="title">Xóm E-Com: DuckDB model layers and grain</title>
-<desc id="desc">Planned model flow from PostgreSQL snapshots into DuckDB. Four Bronze snapshot tables feed four typed staging views. Enriched order lines retain row_id, then aggregate to validated order_key. First analytics marts are monthly performance, product performance and customer RFM. Category discount can use SQL analyses; market basket is deferred until product identity and sufficient basket support are confirmed. Candidate keys, currencies and metric definitions still require profiling.</desc>
-<defs>
- <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11Z" fill="#6ddcc4"/></marker>
- <style>
- text{font-family:'Segoe UI',Arial,sans-serif}
- .eyebrow{font-size:15px;font-weight:700;letter-spacing:1.6px;fill:#9bb3ce}
- .title{font-size:42px;font-weight:700;fill:#f2f6ff}
- .subtitle{font-size:21px;fill:#b3c3d9}
- .heading{font-size:25px;font-weight:700;fill:#eef5ff}
- .name{font-size:22px;font-weight:600;fill:#eef5ff}
- .body{font-size:20px;fill:#c9d6e7}
- .small{font-size:17px;fill:#a3b9d3}
- .edge{fill:none;stroke:#6ddcc4;stroke-width:3;marker-end:url(#arrow)}
- </style>
-</defs>
-<rect width="1600" height="1000" rx="28" fill="#0d1422"/>
-<text x="62" y="48" class="eyebrow">XÓM E-COM / DUCKDB MODEL BLUEPRINT</text>
-<text x="62" y="108" class="title">Model the grain before the metric.</text>
-<text x="62" y="148" class="subtitle">PostgreSQL source → DuckDB Bronze → dbt Silver / Gold · full snapshot and rebuild first</text>
-<rect x="62" y="220" width="330" height="322" rx="20" fill="#1b302e" stroke="#5a998a" stroke-width="2"/>
-<text x="86" y="260" class="heading">Bronze · PG snapshot</text>
-<text x="86" y="304" class="name">customer</text>
-<text x="86" y="331" class="small">One customer_id</text>
-<text x="86" y="371" class="name">product</text>
-<text x="86" y="398" class="small">One product_code</text>
-<text x="86" y="438" class="name">region</text>
-<text x="86" y="465" class="small">One region_code</text>
-<text x="86" y="505" class="name">ecom_sales · one row_id</text>
-<path class="edge" d="M392 382 H452"/>
-<rect x="452" y="220" width="392" height="322" rx="20" fill="#282b40" stroke="#8b7daf" stroke-width="2"/>
-<text x="476" y="260" class="heading">Silver · staging views</text>
-<text x="476" y="308" class="name">stg_customers</text>
-<text x="476" y="352" class="name">stg_products</text>
-<text x="476" y="396" class="name">stg_regions</text>
-<text x="476" y="440" class="name">stg_ecom_sales</text>
-<text x="476" y="487" class="small">Types / null rules / keys / relationships</text>
-<text x="476" y="516" class="small">No arbitrary dedup or hidden exclusions</text>
-<path class="edge" d="M844 382 H876 V333 H902"/>
-<rect x="902" y="220" width="636" height="322" rx="20" fill="#19283b" stroke="#708bab" stroke-width="2"/>
-<text x="926" y="260" class="heading">Silver joins → Gold facts</text>
-<rect x="926" y="286" width="588" height="92" rx="12" fill="#263b4d" stroke="#547d98"/>
-<text x="950" y="321" class="name">fct_order_lines</text>
-<text x="950" y="351" class="body">One row_id · dimension joins must not fan out</text>
-<path class="edge" d="M1220 378 V420"/>
-<rect x="926" y="420" width="588" height="92" rx="12" fill="#263b4d" stroke="#547d98"/>
-<text x="950" y="455" class="name">fct_orders</text>
-<text x="950" y="485" class="body">One validated order_key · sales / profit roll-up</text>
-<path class="edge" d="M1220 542 V596 H287 V654"/>
-<path class="edge" d="M1220 596 H801 V654"/>
-<path class="edge" d="M1220 596 H1313 V654"/>
-<text x="62" y="576" class="eyebrow">GOLD ANALYTICS MARTS · RECONCILE BEFORE REPORTING</text>
-<rect x="62" y="670" width="450" height="151" rx="18" fill="#353121" stroke="#b6a65d" stroke-width="2"/>
-<text x="86" y="710" class="heading">Monthly performance</text>
-<text x="86" y="746" class="body">Month × market × segment</text>
-<text x="86" y="780" class="small">From lines · sales / margin / calendar YoY</text>
-<rect x="576" y="670" width="450" height="151" rx="18" fill="#353121" stroke="#b6a65d" stroke-width="2"/>
-<text x="600" y="710" class="heading">Product performance</text>
-<text x="600" y="746" class="body">Product code × analysis period</text>
-<text x="600" y="780" class="small">From lines · quantity / sales / profit</text>
-<rect x="1088" y="670" width="450" height="151" rx="18" fill="#353121" stroke="#b6a65d" stroke-width="2"/>
-<text x="1112" y="710" class="heading">Customer RFM</text>
-<text x="1112" y="746" class="body">Customer × fixed as_of_date</text>
-<text x="1112" y="780" class="small">From orders · explicit window and scoring</text>
-<rect x="62" y="866" width="1476" height="65" rx="15" fill="#1c2334" stroke="#495a73" stroke-dasharray="6 6"/>
-<text x="86" y="906" class="body">Next: discount analysis SQL · basket after product-identity and support checks · dashboard after insight validation</text>
-<text x="62" y="975" class="small">Candidate keys require profiling · source-reported sales/profit semantics and currency remain open · not implemented models</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
+  <title id="title">Xóm E-Com: grain and dbt models serving business questions</title>
+  <desc id="desc">Logical model map, not a completed DAG. The four raw tables are already loaded. Four dbt Bronze views are verified, followed by planned Silver staging and enrichment preserve grain and unknown keys; planned Gold facts support profitability, discount, product mix and monthly-change questions. RFM and basket are later phases. Tests and query evidence are required before business conclusions.</desc>
+  <defs>
+    <marker id="data-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11Z" fill="#6ddcc4"/></marker>
+    <marker id="context-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11Z" fill="#b9a9f3"/></marker>
+    <style>
+      text { font-family: 'Segoe UI', Arial, sans-serif; }
+      .eyebrow { font-size: 15px; font-weight: 700; letter-spacing: 1.5px; fill: #aebbd2; }
+      .title { font-size: 44px; font-weight: 700; fill: #f2f6ff; }
+      .subtitle { font-size: 21px; fill: #b5c5dc; }
+      .tag { font-size: 15px; font-weight: 700; letter-spacing: 0.8px; }
+      .heading { font-size: 27px; font-weight: 700; fill: #f1f5ff; }
+      .name { font-size: 23px; font-weight: 600; fill: #eaf2ff; }
+      .body { font-size: 20px; fill: #ccdaeb; }
+      .small { font-size: 18px; fill: #aec1db; }
+      .data-edge { fill: none; stroke: #6ddcc4; stroke-width: 3; marker-end: url(#data-arrow); }
+      .context-edge { fill: none; stroke: #b9a9f3; stroke-width: 2.5; stroke-dasharray: 7 7; marker-end: url(#context-arrow); }
+    </style>
+  </defs>
+  <rect width="1600" height="1100" rx="28" fill="#0d1422"/>
+  <text x="62" y="48" class="eyebrow">XÓM E-COM / GRAIN → MODELS → BUSINESS ANSWERS</text>
+  <text x="62" y="108" class="title">Every model serves a business question.</text>
+  <text x="62" y="148" class="subtitle">DuckDB raw is loaded · Bronze views verified · tests / Silver / Gold planned · logical model and decision map</text>
+  <rect x="62" y="240" width="350" height="225" rx="18" fill="#19332e" stroke="#538d7e" stroke-width="1.5"/>
+  <text x="86" y="270" class="tag" fill="#7fe1c5">LOADED · PYTHON SNAPSHOT</text>
+  <text x="86" y="310" class="heading">raw · 4 typed tables</text>
+  <text x="86" y="350" class="body">customer · customer_id</text>
+  <text x="86" y="382" class="body">product · product_code</text>
+  <text x="86" y="414" class="body">region · region_code</text>
+  <text x="86" y="446" class="body">ecom_sales · row_id</text>
+  <path d="M237 465 V493" class="data-edge"/>
+  <rect x="62" y="493" width="350" height="87" rx="18" fill="#28253b" stroke="#80709e" stroke-width="1.5"/>
+  <text x="86" y="526" class="name">dbt Bronze · bronze_* views</text>
+  <text x="86" y="556" class="small">VERIFIED · values / grain / lineage</text>
+  <rect x="474" y="240" width="470" height="340" rx="18" fill="#28253b" stroke="#80709e" stroke-width="1.5"/>
+  <text x="498" y="270" class="tag" fill="#edc984">NEXT · DBT VIEWS</text>
+  <text x="498" y="310" class="heading">Silver</text>
+  <text x="498" y="358" class="name">stg_ecom_sales</text>
+  <text x="498" y="400" class="name">stg_products</text>
+  <text x="498" y="442" class="body">Then: customers / regions</text>
+  <text x="498" y="485" class="body">LEFT JOIN + unknown flags</text>
+  <text x="498" y="526" class="small">Validate order key before roll-up</text>
+  <text x="498" y="553" class="small">Source / ref lineage · counts / totals</text>
+  <rect x="1006" y="240" width="532" height="340" rx="18" fill="#243146" stroke="#6883a5" stroke-width="1.5"/>
+  <text x="1030" y="270" class="tag" fill="#edc984">PLANNED · DBT TABLES</text>
+  <text x="1030" y="310" class="heading">Gold · core facts</text>
+  <rect x="1030" y="334" width="484" height="100" rx="12" fill="#2a3e50" stroke="#658ba9" stroke-width="1.5"/>
+  <text x="1054" y="371" class="name">fct_order_lines</text>
+  <text x="1054" y="406" class="small">One row_id · sales / profit / quantity</text>
+  <path d="M1272 434 V452" class="context-edge"/>
+  <rect x="1030" y="452" width="484" height="100" rx="12" fill="#2a3e50" stroke="#658ba9" stroke-width="1.5"/>
+  <text x="1054" y="489" class="name">fct_orders</text>
+  <text x="1054" y="524" class="small">One validated order_key · AOV / loss</text>
+  <path d="M412 535 H444 V410 H474" class="context-edge"/>
+  <path d="M944 410 H1006" class="context-edge"/>
+  <text x="62" y="622" class="eyebrow">P1 · MODELS MUST SUPPORT A DECISION</text>
+  <path d="M1272 580 V658 H237 V742" class="context-edge"/>
+  <path d="M613 658 V742" class="context-edge"/>
+  <path d="M989 658 V742" class="context-edge"/>
+  <path d="M1272 658 H1364 V742" class="context-edge"/>
+  <rect x="62" y="742" width="350" height="154" rx="18" fill="#332e21" stroke="#ac985a" stroke-width="1.5"/>
+  <text x="84" y="772" class="tag" fill="#edc984">B01 · PROFITABILITY</text>
+  <text x="84" y="810" class="name">Profit, margin and loss</text>
+  <text x="84" y="846" class="body">Facts + analyses</text>
+  <text x="84" y="878" class="small">Market / segment / category</text>
+  <rect x="438" y="742" width="350" height="154" rx="18" fill="#332e21" stroke="#ac985a" stroke-width="1.5"/>
+  <text x="460" y="772" class="tag" fill="#edc984">B02 · DISCOUNT</text>
+  <text x="460" y="810" class="name">Discount vs. performance</text>
+  <text x="460" y="846" class="body">Facts + comparable groups</text>
+  <text x="460" y="878" class="small">Association, then validation</text>
+  <rect x="814" y="742" width="350" height="154" rx="18" fill="#332e21" stroke="#ac985a" stroke-width="1.5"/>
+  <text x="836" y="772" class="tag" fill="#edc984">B03 · PRODUCT MIX</text>
+  <text x="836" y="810" class="name">Product contribution</text>
+  <text x="836" y="846" class="body">mart_product_performance</text>
+  <text x="836" y="878" class="small">Quantity / sales / profit mix</text>
+  <rect x="1190" y="742" width="348" height="154" rx="18" fill="#332e21" stroke="#ac985a" stroke-width="1.5"/>
+  <text x="1212" y="772" class="tag" fill="#edc984">B04 · TIME</text>
+  <text x="1212" y="810" class="name">Monthly change</text>
+  <text x="1212" y="846" class="body">mart_monthly_performance</text>
+  <text x="1212" y="878" class="small">Comparable periods / YoY</text>
+  <rect x="62" y="944" width="1476" height="80" rx="15" fill="#1c2334" stroke="#536782" stroke-width="1.5"/>
+  <text x="86" y="976" class="tag" fill="#c6b5fa">P2 · CUSTOMER / RFM AND BASKET AFTER THE FIRST ANALYSES</text>
+  <text x="86" y="1006" class="small">Fixed as-of / observation window / scoring · product identity / eligible orders / minimum support</text>
+  <text x="62" y="1067" class="small">Planned outputs need metric definitions, reconciliation and SQL evidence; no business findings are published yet.</text>
 </svg>

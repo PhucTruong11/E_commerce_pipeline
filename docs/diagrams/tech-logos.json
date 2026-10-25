@@ -1,0 +1,69 @@
+{
+  "artifact": "architecture.svg",
+  "retrieved_on": "2026-10-24",
+  "usage": "Embedded vector logos identify the tools used by this project; no affiliation or endorsement is implied.",
+  "artwork": "Original vector paths and aspect ratios are retained. Logos are embedded as symbols; dbt uses a white contrast chip. Simple Icons fills use brand colors. No external asset requests are required to render the diagram.",
+  "licensing_note": "The repository MIT license covers original project work, not third-party brand rights. Simple Icons distributes its collection under CC0-1.0; individual brand artwork and trademarks remain subject to their applicable owners and terms. See upstream sources and guidelines.",
+  "simple_icons_disclaimer": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
+  "logos": [
+    {
+      "name": "Apache Airflow",
+      "symbol": "logo-apacheairflow",
+      "downloaded_from": "https://airflow.apache.org/images/airflow-icon.svg",
+      "upstream_source": "https://airflow.apache.org/community/resources/",
+      "original_viewbox": "0 0 175 175",
+      "source_sha256": "5ef09e84bc3ec931468369b388e9be65fd68fd93c09e53f73b15f295f67f60e3"
+    },
+    {
+      "name": "dbt",
+      "symbol": "logo-dbt",
+      "downloaded_from": "https://raw.githubusercontent.com/dbt-labs/docs.getdbt.com/current/website/static/img/dbt-logo.svg",
+      "upstream_source": "https://github.com/dbt-labs/docs.getdbt.com/blob/current/website/static/img/dbt-logo.svg",
+      "original_viewbox": "0 0 139 32",
+      "source_sha256": "c5ba37661581576414d0ef2758e8aa6151ca3751c940d0dbd10c1cd212fbda24"
+    },
+    {
+      "name": "Docker",
+      "symbol": "logo-docker",
+      "downloaded_from": "https://cdn.simpleicons.org/docker",
+      "upstream_source": "https://www.docker.com/company/newsroom/media-resources",
+      "original_viewbox": "0 0 24 24",
+      "source_sha256": "ba1fb157870b2ec02e054aed42154ac7418e25af91ec321fd328d17cad4023cd",
+      "collection": "Simple Icons",
+      "collection_url": "https://github.com/simple-icons/simple-icons"
+    },
+    {
+      "name": "PostgreSQL",
+      "symbol": "logo-postgresql",
+      "downloaded_from": "https://cdn.simpleicons.org/postgresql",
+      "upstream_source": "https://wiki.postgresql.org/wiki/Logo",
+      "original_viewbox": "0 0 24 24",
+      "source_sha256": "bc45b1c56d0b1501dea387dbec4fda450d2ebc35244a620791815509d8c41dba",
+      "collection": "Simple Icons",
+      "collection_url": "https://github.com/simple-icons/simple-icons",
+      "brand_guidelines": "https://www.postgresql.org/about/policies/trademarks/"
+    },
+    {
+      "name": "Python",
+      "symbol": "logo-python",
+      "downloaded_from": "https://cdn.simpleicons.org/python",
+      "upstream_source": "https://www.python.org/community/logos/",
+      "original_viewbox": "0 0 24 24",
+      "source_sha256": "a762008752dc999ad54e7e477194f12a1b2ce07c735be1f21b3b3af8f26eb7af",
+      "collection": "Simple Icons",
+      "collection_url": "https://github.com/simple-icons/simple-icons",
+      "brand_guidelines": "https://www.python.org/community/logos/"
+    },
+    {
+      "name": "DuckDB",
+      "symbol": "logo-duckdb",
+      "downloaded_from": "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/duckdb.svg",
+      "upstream_source": "https://github.com/simple-icons/simple-icons/blob/develop/icons/duckdb.svg",
+      "original_viewbox": "0 0 24 24",
+      "source_sha256": "2d53f8978d58ac12411fc618569a492922bb15e3e1798b56ba1511e72c62f826",
+      "collection": "Simple Icons",
+      "collection_url": "https://github.com/simple-icons/simple-icons"
+    }
+  ],
+  "provenance": "Airflow/dbt/Docker/PostgreSQL/Python vectors reused from the locally available LaplapTech diagram; original upstream attribution is retained. DuckDB was retrieved from Simple Icons."
+}

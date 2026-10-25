@@ -1,6 +1,6 @@
 # Chạy môi trường e-commerce bằng Docker
 
-**Môi trường dev đã được triển khai ngày 2026-10-24.** Có runtime Python + psycopg + DuckDB + dbt-duckdb, database/users riêng trên PostgreSQL chung và các lệnh kiểm tra bên dưới. Hai loader đã build, qua 10 kiểm tra fixture và chạy dữ liệu thật thành công: 100.889 dòng PostgreSQL → DuckDB Bronze, retry bootstrap skipped. Chưa có models/insight hoặc DAG; `dbt debug` chỉ kiểm tra môi trường, không chứng minh pipeline đã chạy.
+**Môi trường dev đã được triển khai ngày 2026-10-24.** Có runtime Python + psycopg + DuckDB + dbt-duckdb, database/users riêng trên PostgreSQL chung và các lệnh kiểm tra bên dưới. Hai loader đã build, qua 12 kiểm tra fixture sau khi đổi layout và chạy dữ liệu thật thành công: 100.889 dòng PostgreSQL → DuckDB raw, retry bootstrap skipped. 4 Bronze views đã được build/đối soát theo [review](plans/raw-to-gold.md#evidence); chưa có dbt data tests/Silver/Gold/insight hoặc DAG; `dbt debug` chỉ kiểm tra môi trường, không chứng minh pipeline đã chạy.
 
 ## 1. Hiểu đúng thành phần đang dùng
 
@@ -77,7 +77,7 @@ $ecomPlatformDir = 'D:\Dev\Project\airflow-platform'
 
 `Check` xác thực mật khẩu qua TCP, đúng database/user, role không có quyền admin, schema ACL; thử ghi/đọc DuckDB và các volume bằng dữ liệu tổng hợp rồi xóa file thử. Nó không đọc/in các dòng khách hàng. Trước bootstrap có `source_tables: 0`, sau bootstrap thành công phải có 4 bảng. `input_files_present: false` nghĩa thiếu CSV local, không phải PostgreSQL lỗi.
 
-`DbtDebug` dùng DuckDB tạm trong build volume và profile thật; thành công có `All checks passed`. Không có models nên chưa chạy `dbt run/build/test/freshness` cho pipeline. Bootstrap/Extract đã dùng file lock `.writer.lock`; runner refresh sau này phải giữ lock xuyên các stage; sau extract phải đóng DuckDB trước khi gọi dbt.
+`DbtDebug` dùng DuckDB tạm trong build volume và profile thật; thành công có `All checks passed`. Review đã chạy dbt build cho 4 Bronze views trên raw candidate, nhưng chưa có dbt test nodes. dbt debug không thay thế build hoặc quality tests. Bootstrap/Extract đã dùng file lock `.writer.lock`; runner refresh sau này phải giữ lock xuyên các stage; sau extract phải đóng DuckDB trước khi gọi dbt.
 
 Report cuối lưu trong volume `ecom-dev-artifacts` tại `environment-latest.json`. `dbt debug` có log theo lần chạy; kiểm tra và dọn artifacts đúng project theo nhu cầu, không có retention tự động. Input CSV và file report không được bake vào image.
 
@@ -104,7 +104,7 @@ Nếu báo sai mật khẩu, dùng lại file secret đã provision. Sửa `.env
 
 ### Mở DuckDB bằng DataGrip
 
-DuckDB ở đây là database file, không có host/port/user/password như PostgreSQL. Bản đã xuất cho Windows:
+DuckDB ở đây là database file, không có host/port/user/password như PostgreSQL. **Bản Windows dưới đây là inspection copy layout Bronze cũ**, chưa được thay sau lần extract raw mới; không dùng nó với dbt raw source declarations hiện tại. Các truy vấn bronze bên dưới chỉ dành cho bản legacy này. Bản đã xuất cho Windows:
 
 `D:\Dev\Project\e_commerce\.local\datagrip\ecom_analytics.duckdb`
 
@@ -162,9 +162,11 @@ $ecomPlatformDir = 'D:\Dev\Project\airflow-platform'
 .\scripts\Invoke-Dev.ps1 -Action Extract -Role reader -PlatformDir $ecomPlatformDir
 ```
 
-Bootstrap tự tạo bảng từ typed contract, COPY bốn CSV và ghi ledger trong một transaction; không chạy SQL DDL riêng. Cùng baseline chạy lại là skipped, không reset nguồn. Extract đọc một PG snapshot, ghi candidate mới và đối soát hash/counts/nulls/totals trước khi xác nhận validated_bronze.
+Bootstrap tự tạo bảng từ typed contract, COPY bốn CSV và ghi ledger trong một transaction; không chạy SQL DDL riêng. Cùng baseline chạy lại là skipped, không reset nguồn. Extract đọc một PG snapshot, ghi candidate mới và đối soát hash/counts/nulls/totals trước khi xác nhận `validated_raw`, `storage_schema: raw`. Python không tạo Bronze/Silver/Gold; các lớp đó do bạn viết SQL dbt sau. Candidate mới không sửa/xóa candidate Bronze cũ.
 
-Receipt bootstrap/extract nằm trong ecom-dev-artifacts theo run_id/extraction_id; candidate ở ecom-dev-build/candidates/extraction_id/ecom_analytics.duckdb. Không có retention tự động. Hướng dẫn code/contract, output và test: [Bootstrap → Bronze](plans/2026-10-24-bootstrap-extract.md).
+Lần đổi raw đã kiểm ngày 24/10/2026: extraction_id `28f756d06b334dfca12f078774f00db9`, tổng 100.889 dòng; [record và đường dẫn candidate/receipt](plans/raw-to-gold.md#evidence). Bản DataGrip ở mục 5 vẫn là Bronze cũ.
+
+Receipt bootstrap/extract nằm trong ecom-dev-artifacts theo run_id/extraction_id; candidate ở ecom-dev-build/candidates/extraction_id/ecom_analytics.duckdb. Không có retention tự động. Hướng dẫn code/contract, output và test: [Bootstrap → raw](plans/raw-to-gold.md).
 
 ```powershell
 python .\tests\integration\test_ingestion.py --platform-dir $ecomPlatformDir
@@ -174,7 +176,7 @@ Python host chỉ cần stdlib; test dùng PostgreSQL/runtime fixture riêng, kh
 
 Nếu thiếu secret, khôi phục đúng **file mật khẩu cũ**; không tự sinh lại mật khẩu cho DB đã provision. Wrapper dừng trước Docker khi secret là directory/missing. Không copy password vào terminal output hoặc Git.
 
-Tiếp theo: dbt Silver/Gold, reconciliation và immutable Gold publish; sau khi refresh CLI đạt mới thêm DAG vào shared Airflow.
+Tiếp theo: bổ sung source/model dbt tests cho 4 Bronze views đã viết theo [plan raw → Bronze → Silver](plans/raw-to-gold.md), sau đó Silver/Gold, reconciliation và immutable Gold publish; sau khi refresh CLI đạt mới thêm DAG vào shared Airflow.
 
 Tham khảo: [Compose services](https://docs.docker.com/reference/compose-file/services/), [dbt-duckdb profile](https://github.com/duckdb/dbt-duckdb), [Psycopg connections](https://www.psycopg.org/psycopg3/docs/api/connections.html).
 
@@ -184,9 +186,10 @@ Tham khảo: [Compose services](https://docs.docker.com/reference/compose-file/s
 Registry vận hành đã có `projects.ecom`: `dbt_threads=1`, `services={}`, task
 `refresh={"memory_mib":1024,"cpus":1}`. Task dùng hai slot trong pool chung;
 không thêm service thường trực hoặc tăng pool. DuckDB nằm trong runtime, code
-dbt ở `/app/dbt`, schemas là `bronze`/`silver`/`gold`; macro giữ tên schema
-đúng thay vì ghép thành `silver_gold`. Bronze do extractor nạp, source YAML
-chưa tạo dữ liệu.
+dbt ở `/app/dbt`; Python nạp physical schema `raw`, dbt sẽ tạo
+`bronze`/`silver`/`gold`. Raw source YAML ở `dbt/models/raw/sources.yml`
+chỉ khai báo nguồn. Macro giữ đúng tên schema thay vì ghép thành `silver_gold`;
+Bốn Bronze views và lineage macro đã được build/đối soát; source/model data tests còn trong plan.
 
 Standalone Compose, business models/tests, Gold publication,
 DAG distribution và CI còn là các bước triển khai tiếp theo theo

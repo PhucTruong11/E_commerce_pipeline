@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: >-
+      Typed PostgreSQL snapshots loaded by Python into raw, with extraction lineage.
+      Each Extract CLI run creates a new private candidate. dbt reads these sources
+      to build Bronze views, then Silver/Gold. Layer implementation and validation
+      status is recorded in docs/plans/raw-to-gold.md#evidence.
+      Older validated_bronze candidates use the previous layout and cannot be
+      used with these declarations. Extract again to obtain a validated_raw receipt.
+    tables:
+      - name: customer
+        description: One source customer_id, with extraction lineage; contains private customer data.
+      - name: product
+        description: One source product_code; product identity still requires business validation.
+      - name: region
+        description: One source region_code.
+      - name: ecom_sales
+        description: One source row_id; order_id is not the line key.

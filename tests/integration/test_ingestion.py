@@ -14,6 +14,8 @@ def child_checks():
     import csv
     from decimal import Decimal
     from unittest.mock import patch
+    from types import SimpleNamespace
+    from jinja2 import Environment
     import duckdb
     import psycopg
     from ingestion.runtime import PipelineError, build_lock, connection_settings
@@ -43,6 +45,24 @@ def child_checks():
             with psycopg.connect(**connection_settings('ecom_owner'),autocommit=True) as pg:
                 return pg.execute(query,args).fetchall() if query.lstrip().upper().startswith('SELECT') else pg.execute(query,args)
     checks={}
+    # The schema guard must admit dbt's internal test schema without admitting
+    # raw as a model output (or admitting the audit schema for ordinary models).
+    def reject_schema(message):
+        raise ValueError(message)
+    macro=Environment().from_string(Path('/app/dbt/macros/generate_schema_name.sql').read_text()).make_module({
+        'target':SimpleNamespace(schema='silver'),
+        'exceptions':SimpleNamespace(raise_compiler_error=reject_schema),
+    }).generate_schema_name
+    model_node=SimpleNamespace(resource_type='model')
+    for schema in ['bronze','silver','gold']:
+        assert macro(schema,model_node).strip()==schema
+    assert macro(None,model_node).strip()=='silver'
+    assert macro('dbt_test__audit',SimpleNamespace(resource_type='test')).strip()=='dbt_test__audit'
+    for schema in ['raw','dbt_test__audit']:
+        try: macro(schema,model_node)
+        except ValueError: pass
+        else: raise AssertionError('Model schema guard allowed a protected schema')
+    checks['dbt_schema_guard_and_internal_test_audit']='passed'
     with build_lock():
         try:
             with build_lock():
@@ -107,12 +127,20 @@ def child_checks():
             snapshot=loader.extract()
         assert snapshot['tables']['ecom_sales']['sums']['profit']==Decimal('1.00')
         assert snapshot['tables']['ecom_sales']['rows']==2
+        assert snapshot['status']=='validated_raw' and snapshot['storage_schema']=='raw'
         with duckdb.connect(snapshot['candidate'],read_only=True) as duck:
-            assert duck.execute('SELECT count(*) FROM bronze.ecom_sales').fetchone()==(2,)
+            assert duck.execute('SELECT count(*) FROM raw.ecom_sales').fetchone()==(2,)
+            actual_tables=duck.execute("""SELECT table_name FROM information_schema.tables
+                WHERE table_schema='raw' ORDER BY table_name""").fetchall()
+            assert actual_tables==[(name,) for name in sorted(rows)]
+            # Loading raw must leave all dbt-owned layers for the learner to build.
+            assert duck.execute("""SELECT count(*) FROM information_schema.schemata
+                WHERE schema_name IN ('bronze','silver','gold')""").fetchone()==(0,)
         fresh=loader.extract()
         assert fresh['tables']['ecom_sales']['sums']['profit']==Decimal('98.00')
         assert fresh['candidate']!=snapshot['candidate']
         checks['consistent_snapshot_and_new_candidate']='passed'
+        checks['raw_layout_leaves_dbt_layers_unbuilt']='passed'
         try: load_csv.bootstrap()
         except PipelineError: pass
         else: raise AssertionError('Reader bootstrap was not rejected')

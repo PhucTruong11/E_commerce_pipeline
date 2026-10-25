@@ -2,6 +2,8 @@
 
 > Plan tích hợp DAG, cập nhật 2026-10-24. Runtime và DB/users đã triển khai theo [Docker runbook](docker.md); DAG chưa deploy. [Docker runbook](docker.md) ghi rõ phần hiện có và công việc còn lại.
 
+Ưu tiên hiện tại là [dbt và commercial analytics](plans/business-questions.md). Contract này dành cho chặng tích hợp sau khi modeling/tests/analyses đã được kiểm chứng; không phải kế hoạch triển khai Airflow ngay trong buổi Bronze → Silver.
+
 ## Cách nối với platform hiện có
 
 Airflow chỉ điều phối; loader và dbt nằm trong image **ecom-runtime** riêng. Không cài project dependencies vào Airflow và không dựng control plane khác.
