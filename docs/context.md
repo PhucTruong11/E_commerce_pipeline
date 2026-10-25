@@ -6,7 +6,13 @@ Nguồn controlling: [Xóm E-Com business context](https://dataset.xomdata.com/d
 
 Marketplace nhiều thị trường với danh mục Office Supplies, Furniture và Technology. Trọng tâm phân tích: doanh thu/lợi nhuận, chiết khấu, phân khúc khách hàng, địa lý và mua lặp lại.
 
-Chưa có số liệu được tính trong repository. Các số trong business narrative của website không phải kết quả pipeline đã đối soát. Không đưa kết luận về traffic, ad spend, return rate, Mr. Fuzzy hay Sugar Panda vào báo cáo của dataset này.
+Chưa có business insights được tính/đối soát; inventory và kết quả kỹ thuật loader không phải kết luận kinh doanh. Các số trong business narrative của website không phải kết quả pipeline đã đối soát. Không đưa kết luận về traffic, ad spend, return rate, Mr. Fuzzy hay Sugar Panda vào báo cáo của dataset này.
+
+## Cách dùng bộ câu hỏi
+
+[Plan dbt + commercial analytics](plans/business-questions.md) là hướng ưu tiên hiện tại. Gom câu hỏi thành B01 hiệu quả/lỗ, B02 discount, B03 product mix, B04 xu hướng, B05 khách hàng và B06 basket. Mỗi nhóm phải nêu quyết định cần hỗ trợ, metric/grain, model/test, evidence và giới hạn; 15 query dưới đây là bộ công cụ, không phải 15 insight.
+
+Các câu hỏi cần hỏi nguồn/người quyết định trước: sales gross/net, cost scope của profit, currency, scope order_id, product-code identity, kỳ so sánh và định nghĩa VIP/inactivity/support. Các vai trò Finance/Commercial/CRM trong plan là giả định học tập. Không coi chúng là yêu cầu stakeholder đã được xác nhận.
 
 ## Câu hỏi và đầu ra dự kiến
 

@@ -11,6 +11,9 @@ clean-targets: [target, dbt_packages]
 
 models:
   ecom:
+    bronze:
+      +schema: bronze
+      +materialized: view
     silver:
       +schema: silver
       +materialized: view

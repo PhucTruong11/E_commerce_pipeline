@@ -4,6 +4,20 @@
 
 ![Model flow](diagrams/model-flow.svg)
 
+Ưu tiên model theo [business decisions và metric framework](plans/business-questions.md). Bronze/Silver tests bảo vệ câu trả lời; số lượng models hoặc test pass tự nó không phải giá trị kinh doanh.
+
+## Model và business question phải đi cùng nhau
+
+| Model dự kiến | Business question | Kiểm tra bảo vệ kết luận |
+| --- | --- | --- |
+| fct_order_lines / fct_orders | B01 hiệu quả/lỗ, B02 discount | Row/order grain, roll-up, totals, unknown coverage |
+| mart_product_performance | B03 product mix | Product identity, ranking scope và contribution totals |
+| mart_monthly_performance | B04 xu hướng | Calendar/period coverage, baseline và sum reconciliation |
+| mart_customer_rfm | B05 khách hàng, sau P1 | Fixed as-of/window, scoring/ties, đủ thời gian quan sát |
+| mart_market_basket | B06 basket, sau P1 | Distinct products/order, đúng population và đủ support |
+
+Bảng trên là thiết kế, không phải danh sách models đã chạy. Hai staging views đầu tiên là bước chuẩn bị cho B01–B03; Raw đã typed và Bronze dự kiến giữ nguyên nên không cast lại tiền sang float để làm Silver.
+
 ## 1. Nguồn và khóa
 
 | Nguồn | Khóa ứng viên | Cần xác nhận trước khi join |
@@ -17,9 +31,9 @@ Tên cột nguồn tham khảo: [sales](https://dataset.xomdata.com/datasets/e_c
 
 Không dùng `(order_id, product_code)` làm khóa dòng mặc định. Nếu order ID không unique theo scope toàn bộ dataset, cần tạo `order_key` từ business scope đã kiểm chứng và dùng thống nhất ở mọi downstream model.
 
-## 2. DuckDB Bronze / full source snapshot
+## 2. DuckDB raw và dbt Bronze
 
-`bronze.ecom_sales`, `bronze.customer`, `bronze.product`, `bronze.region` trong DuckDB giữ snapshot được extract từ PostgreSQL và extraction lineage. PG e_commerce là nguồn; DuckDB Bronze là đầu vào dbt. Mỗi candidate nhận đủ 4 bảng, không union các snapshot.
+`raw.ecom_sales`, `raw.customer`, `raw.product`, `raw.region` giữ typed PostgreSQL snapshot và extraction lineage, do Python nạp. Mỗi candidate nhận đủ 4 bảng, không union các snapshot. dbt đọc `source('raw', ...)`; bạn đã viết `bronze.bronze_ecom_sales`, `bronze_customer`, `bronze_product`, `bronze_region` bằng explicit projections giữ keys/values/lineage. Bronze dùng view; Silver sẽ đọc `ref('bronze_*')`. Xem mẫu macro và tests trong [plan thực hành](plans/raw-to-gold.md).
 
 CSV chỉ lưu baseline bootstrap. Source có OLTP changes thì cần PG backup/change journal để phục hồi lịch sử; không có MinIO archive. Xem [snapshot contract](architecture.md).
 
@@ -44,7 +58,7 @@ Dedup không phải mặc định dùng `ROW_NUMBER()` rồi lấy bất kỳ d�
 | `int_order_products` | Một order key × product code | Distinct sản phẩm trước basket |
 | `int_order_product_pairs` | Một order key × cặp sản phẩm | Self-join với `product_a < product_b` |
 
-Baseline có 0 sales orphan customer, 2 orphan product và 2 orphan region (các tập có thể chồng nhau). Source/Bronze giữ toàn bộ và báo counts, không tạo FK cứng. Silver dùng LEFT JOIN và cờ unknown; chưa tự tạo dimension member giả. Không để inner join âm thầm làm mất sales; không để duplicate dimension nhân doanh thu. Policy unknown phải được đo đếm và có ngưỡng chấp nhận được ghi trong config.
+Baseline có 0 sales orphan customer, 2 orphan product và 2 orphan region (các tập có thể chồng nhau). Source/raw giữ toàn bộ; Bronze phải bảo toàn và báo counts, không tạo FK cứng. Silver dùng LEFT JOIN và cờ unknown; chưa tự tạo dimension member giả. Không để inner join âm thầm làm mất sales; không để duplicate dimension nhân doanh thu. Policy unknown phải được đo đếm và có ngưỡng chấp nhận được ghi trong config.
 
 ## 5. DuckDB Gold / marts · facts và aggregates
 
@@ -62,9 +76,9 @@ Baseline có 0 sales orphan customer, 2 orphan product và 2 orphan region (các
 | `mart_product_performance` | Một product code × period_start × period_end | Quantity, sales, profit và ranking |
 | `mart_market_basket` | Một cặp product codes × period_start × period_end | Basket count, support, confidence hai hướng, lift |
 
-Ưu tiên triển khai `fct_order_lines`, `fct_orders` và ba marts monthly/product/RFM. Category discount có thể trả bằng analysis SQL; basket chỉ thêm sau khi product identity/population đã xác nhận. Không cần tạo tất cả models ngay để trả lời câu hỏi đơn giản.
+Ưu tiên triển khai Silver đúng grain, `fct_order_lines`, `fct_orders`; profit/margin/loss/discount analyses trước, monthly/product marts tiếp theo; RFM sau khi chốt as-of/window và rule. Category discount có thể trả bằng analysis SQL; basket chỉ thêm sau khi product identity/population đã xác nhận. Không cần tạo tất cả models ngay để trả lời câu hỏi đơn giản.
 
-Các facts/dimensions/analytics models cùng nằm trong schema `gold` ở MVP; staging và intermediate models nằm trong `silver`. Code tổ chức tại `dbt/models/bronze`, `silver`, `gold`; Bronze là source declarations cho bảng Python đã nạp. `dim_*` mô tả thực thể; `mart_*` chứa metric và mốc thời gian. Không gộp RFM vào customer dimension như một thuộc tính tĩnh. Lịch sử dimension trong MVP là current-state; chưa bảo đảm thuộc tính đúng tại thời điểm giao dịch.
+Các facts/dimensions/analytics models cùng nằm trong schema `gold` ở MVP; staging và intermediate models nằm trong `silver`. Code tổ chức tại `dbt/models/bronze`, `silver`, `gold`; Raw source declarations nằm ở dbt/models/raw/sources.yml; Bronze gồm bốn SQL views đã build/đối soát; dbt source/model tests vẫn chưa triển khai, xem [review](plans/raw-to-gold.md#evidence). `dim_*` mô tả thực thể; `mart_*` chứa metric và mốc thời gian. Không gộp RFM vào customer dimension như một thuộc tính tĩnh. Lịch sử dimension trong MVP là current-state; chưa bảo đảm thuộc tính đúng tại thời điểm giao dịch.
 
 ## 6. Metric contract cần chốt
 
@@ -102,7 +116,7 @@ lift(A,B)        = n(A,B) * N / (n(A) * n(B))
 
 ## 8. Quality gate dự kiến
 
-- `unique`, `not_null` cho khóa sau khi grain được xác nhận; `relationships` tới dimensions.
+- `unique`, `not_null` tại đúng grain. Relationships/unknown policy phải xử lý các orphan đã biết; không thêm strict relationship rồi drop sales để làm test xanh.
 - `accepted_values` lấy từ profiling/contract, không suy đoán enum từ vài sample.
 - Discount trong khoảng đã xác nhận; kiểm tra null riêng, không để range test bỏ qua null ngoài ý muốn.
 - Một order key có một customer/date/segment theo contract; sai thì fail/quarantine.
@@ -114,6 +128,8 @@ lift(A,B)        = n(A,B) * N / (n(A) * n(B))
 Tất cả gate phải chạy thật khi có implementation; tài liệu hiện tại không tuyên bố test đã pass.
 
 ## 9. Từ query tới insight
+
+Dùng B01–B06 trong [plan commercial analytics](plans/business-questions.md) để nối model/test tới quyết định. Bộ Q01–Q15 là query backlog, không phải 15 kết luận bắt buộc.
 
 Mỗi kết luận ghi question ID, grain, population, kỳ, metric definition, extraction_id, analysis_run_id và SQL. Ba hướng khởi đầu: thị trường/segment tạo sales nhưng margin thấp; category có discount cao đi cùng loss-order rate cao; khách có monetary/frequency cao nhưng recency dài. Đây là **giả thuyết để kiểm tra**, chưa phải kết quả dữ liệu.
 

@@ -10,7 +10,7 @@ Có thể thử batch incremental theo updated_at trước: phải giải quyế
 
 ## 2. CDC thực sự
 
-Luồng mục tiêu: PostgreSQL WAL/logical decoding → connector/consumer → change journal local bền vững → DuckDB Bronze → dbt → Gold release.
+Luồng mục tiêu: PostgreSQL WAL/logical decoding → connector/consumer → change journal local bền vững → DuckDB raw → dbt Bronze/Silver/Gold → Gold release.
 
 Consumer/connector chọn sau PoC; không giả định Debezium có sẵn sink DuckDB trực tiếp, không mặc định phải dựng Kafka. Journal có thể dùng files local theo batch nếu protocol commit/checkpoint đã kiểm chứng; không cần MinIO trong lab này.
 

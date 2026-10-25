@@ -1,1 +1,87 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc"><title id="title">PostgreSQL source to DuckDB analytics</title><desc id="desc">CSV bootstrap to shared PostgreSQL, consistent snapshot extraction to DuckDB Bronze, dbt Core with dbt-duckdb transforms Silver and Gold. Airflow integration and Gold-only release serving are planned; the CLI Bronze snapshot is implemented. OLTP simulation and WAL-based CDC are optional later phases; no MinIO.</desc><defs><marker id="a" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1L11 6L1 11Z" fill="#6ddcc4"/></marker><style>text{font-family:'Segoe UI',Arial,sans-serif}.title{font-size:42px;font-weight:700;fill:#f2f6ff}.head{font-size:25px;font-weight:700;fill:#eef5ff}.body{font-size:20px;fill:#c9d6e7}.small{font-size:17px;fill:#a3b9d3}.eyebrow{font-size:15px;font-weight:700;letter-spacing:1.3px;fill:#b8a5f5}.edge{fill:none;stroke:#6ddcc4;stroke-width:3;marker-end:url(#a)}</style></defs><rect width="1600" height="1000" rx="28" fill="#0d1422"/><text x="62" y="48" class="eyebrow">XÓM E-COM / ARCHITECTURE · 2026-10-24</text><text x="62" y="108" class="title">PostgreSQL source. DuckDB analytics.</text><text x="62" y="147" class="body">Snapshot and insights first · controlled OLTP changes and CDC later · no MinIO</text><rect x="465" y="184" width="1073" height="72" rx="18" fill="#201f36" stroke="#688baa" stroke-width="1.5"/><text x="489" y="214" class="eyebrow">EXISTING AIRFLOW · BudgetDockerOperator · platform_memory</text><text x="489" y="240" class="small">One refresh task · file lock · project runtime and volumes</text><path class="edge" stroke-dasharray="7 7" d="M1224 256V285"/><rect x="62" y="285" width="330" height="165" rx="18" fill="#192b37" stroke="#688baa" stroke-width="1.5"/><text x="86" y="325" class="head">4 local CSVs</text><text x="86" y="361" class="body">100,889 rows · ~8.76 MiB</text><text x="86" y="397" class="small">Read-only baseline + checksums</text><text x="86" y="427" class="small">Bootstrap once</text><path class="edge" d="M392 367H465"/><rect x="465" y="285" width="380" height="165" rx="18" fill="#1b302e" stroke="#688baa" stroke-width="1.5"/><text x="489" y="325" class="head">Shared PostgreSQL</text><text x="489" y="361" class="body">ecom_source_dev · e_commerce</text><text x="489" y="397" class="small">Source snapshot → future OLTP lab</text><text x="489" y="427" class="small">Project owner and extraction reader</text><path class="edge" d="M845 367H910"/><rect x="910" y="285" width="628" height="165" rx="18" fill="#253247" stroke="#688baa" stroke-width="1.5"/><text x="934" y="325" class="head">Project Docker runtime</text><text x="934" y="361" class="body">Python snapshot extraction + dbt Core / dbt-duckdb</text><text x="934" y="397" class="small">One PG snapshot for all 4 tables · no source reset per refresh</text><text x="934" y="427" class="small">Embedded DuckDB · close loader connection before dbt</text><rect x="62" y="512" width="1476" height="270" rx="22" fill="#151f30" stroke="#45627d" stroke-width="2"/><text x="88" y="551" class="head">DUCKDB WAREHOUSE · candidate file on a persistent project volume</text><text x="88" y="582" class="small">Full snapshot / rebuild first · tests and reconciliation before Gold publication</text><path class="edge" d="M1224 450V480H36V679H88"/><rect x="88" y="612" width="287" height="125" rx="18" fill="#1c3431" stroke="#688baa" stroke-width="1.5"/><text x="108" y="649" class="head">Bronze</text><text x="108" y="682" class="body">4 source tables</text><text x="108" y="714" class="small">extraction_id + lineage</text><rect x="440" y="612" width="287" height="125" rx="18" fill="#2d2b3e" stroke="#688baa" stroke-width="1.5"/><text x="460" y="649" class="head">Silver · staging</text><text x="460" y="682" class="body">Types and data contracts</text><text x="460" y="714" class="small">dbt views</text><rect x="792" y="612" width="287" height="125" rx="18" fill="#253247" stroke="#688baa" stroke-width="1.5"/><text x="812" y="649" class="head">Silver · intermediate</text><text x="812" y="682" class="body">Joins and order roll-up</text><text x="812" y="714" class="small">Preserve business grain</text><rect x="1144" y="612" width="368" height="125" rx="18" fill="#363221" stroke="#688baa" stroke-width="1.5"/><text x="1164" y="649" class="head">Gold · marts</text><text x="1164" y="682" class="body">Facts · monthly · product · RFM</text><text x="1164" y="714" class="small">dbt tables and quality checks</text><path class="edge" d="M375 679H440"/><path class="edge" d="M727 679H792"/><path class="edge" d="M1079 679H1144"/><path class="edge" d="M1328 737V838"/><rect x="1028" y="838" width="484" height="110" rx="18" fill="#1d2b3d" stroke="#688baa" stroke-width="1.5"/><text x="1052" y="878" class="head">Gold-only release → SQL / report</text><text x="1052" y="916" class="body">15 questions · 3–5 supported findings</text><text x="62" y="855" class="eyebrow">OPTIONAL NEXT PHASE</text><text x="62" y="891" class="body">OLTP insert / update / delete → WAL CDC → Bronze</text><text x="62" y="924" class="small">Connector, checkpoints and WAL budget require a separate PoC</text><text x="62" y="977" class="small">100,889 rows loaded and reconciled in Bronze · dbt models, Gold publish, DAG and CDC remain planned</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
+  <title id="title">Xóm E-Com: business questions, dbt and trusted insights</title>
+  <desc id="desc">Commercial analytics roadmap. Ask about profitability and loss, discount, product mix and trends; agree on metrics and grain; build dbt models and tests; use SQL evidence to propose and validate actions. The PostgreSQL-to-DuckDB raw foundation is implemented. Four dbt Bronze views are built and reconciled; dbt data tests, Silver, Gold, reporting and publication remain planned. No business findings have been published.</desc>
+  <defs>
+    <marker id="data-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11Z" fill="#6ddcc4"/></marker>
+    <marker id="context-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L11 6 L1 11Z" fill="#b9a9f3"/></marker>
+    <style>
+      text { font-family: 'Segoe UI', Arial, sans-serif; }
+      .eyebrow { font-size: 15px; font-weight: 700; letter-spacing: 1.5px; fill: #aebbd2; }
+      .title { font-size: 44px; font-weight: 700; fill: #f2f6ff; }
+      .subtitle { font-size: 21px; fill: #b5c5dc; }
+      .tag { font-size: 15px; font-weight: 700; letter-spacing: 0.8px; }
+      .heading { font-size: 27px; font-weight: 700; fill: #f1f5ff; }
+      .name { font-size: 23px; font-weight: 600; fill: #eaf2ff; }
+      .body { font-size: 20px; fill: #ccdaeb; }
+      .small { font-size: 18px; fill: #aec1db; }
+      .data-edge { fill: none; stroke: #6ddcc4; stroke-width: 3; marker-end: url(#data-arrow); }
+      .context-edge { fill: none; stroke: #b9a9f3; stroke-width: 2.5; stroke-dasharray: 7 7; marker-end: url(#context-arrow); }
+    </style>
+  </defs>
+  <rect width="1600" height="1100" rx="28" fill="#0d1422"/>
+  <text x="62" y="48" class="eyebrow">XÓM E-COM / COMMERCIAL ANALYTICS + DBT · 2026-10-24</text>
+  <text x="62" y="108" class="title">Business questions → trusted insights</text>
+  <text x="62" y="148" class="subtitle">Understand the business · define the metrics · model the grain · validate the evidence</text>
+  <rect x="62" y="198" width="465" height="112" rx="18" fill="#1c2338" stroke="#665e8a" stroke-width="1.5"/>
+  <text x="86" y="226" class="tag" fill="#c6b5fa">B01 · PROFITABILITY AND LOSS</text>
+  <text x="86" y="260" class="body">Where are sales and profit concentrated?</text>
+  <text x="86" y="289" class="small">Which groups need closer investigation?</text>
+  <rect x="568" y="198" width="465" height="112" rx="18" fill="#1c2338" stroke="#665e8a" stroke-width="1.5"/>
+  <text x="592" y="226" class="tag" fill="#c6b5fa">B02 · DISCOUNT AND MARGIN</text>
+  <text x="592" y="260" class="body">How does discount relate to margin?</text>
+  <text x="592" y="289" class="small">Compare like-for-like groups.</text>
+  <rect x="1074" y="198" width="464" height="112" rx="18" fill="#1c2338" stroke="#665e8a" stroke-width="1.5"/>
+  <text x="1098" y="226" class="tag" fill="#c6b5fa">B03 / B04 · PRODUCT MIX AND TIME</text>
+  <text x="1098" y="260" class="body">Which products / periods need attention?</text>
+  <text x="1098" y="289" class="small">Separate scale, profitability and mix.</text>
+  <path d="M800 310 V370" class="context-edge"/>
+  <rect x="62" y="370" width="440" height="144" rx="18" fill="#18312d" stroke="#538d7e" stroke-width="1.5"/>
+  <text x="86" y="398" class="tag" fill="#7fe1c5">IMPLEMENTED · DATA FOUNDATION</text>
+  <text x="86" y="434" class="heading">CSV → PostgreSQL source</text>
+  <text x="86" y="466" class="body">Validated snapshot extraction</text>
+  <text x="86" y="494" class="small">Python / Docker · private project runtime</text>
+  <rect x="580" y="370" width="958" height="144" rx="18" fill="#242238" stroke="#766992" stroke-width="1.5"/>
+  <text x="604" y="398" class="tag" fill="#edc984">OPEN DEFINITIONS · BEFORE BUSINESS CLAIMS</text>
+  <text x="604" y="434" class="heading">Agree on metrics, grain and coverage</text>
+  <text x="604" y="466" class="body">Currency · sales / profit meaning · order key · product identity</text>
+  <text x="604" y="494" class="small">State assumptions and limits; do not turn hypotheses into findings.</text>
+  <path d="M282 514 V590" class="data-edge"/>
+  <path d="M800 514 V590" class="context-edge"/>
+  <rect x="62" y="590" width="440" height="196" rx="18" fill="#19332e" stroke="#538d7e" stroke-width="1.5"/>
+  <text x="86" y="620" class="tag" fill="#7fe1c5">LOADED · DBT SOURCE TESTS NEXT</text>
+  <text x="86" y="658" class="heading">DuckDB · raw</text>
+  <text x="86" y="696" class="body">4 typed source snapshots</text>
+  <text x="86" y="730" class="small">Counts / hashes / lineage reconciled</text>
+  <text x="86" y="762" class="small">Source declarations + extraction metadata</text>
+  <rect x="580" y="590" width="440" height="196" rx="18" fill="#28253b" stroke="#80709e" stroke-width="1.5"/>
+  <text x="604" y="620" class="tag" fill="#edc984">BRONZE READY · SILVER NEXT</text>
+  <text x="604" y="658" class="heading">dbt · Bronze → Silver</text>
+  <text x="604" y="696" class="body">Verified views → staging + joins</text>
+  <text x="604" y="730" class="small">Keep row grain / precision / unknowns</text>
+  <text x="604" y="762" class="small">Next: source / model data tests</text>
+  <rect x="1098" y="590" width="440" height="196" rx="18" fill="#332e21" stroke="#ac985a" stroke-width="1.5"/>
+  <text x="1122" y="620" class="tag" fill="#edc984">PLANNED · DBT MODELS</text>
+  <text x="1122" y="658" class="heading">dbt · Gold</text>
+  <text x="1122" y="696" class="body">Line / order facts + reusable marts</text>
+  <text x="1122" y="730" class="small">Profit / margin / loss / time / product</text>
+  <text x="1122" y="762" class="small">Build only what the questions need</text>
+  <path d="M502 688 H580" class="data-edge"/>
+  <path d="M1020 688 H1098" class="context-edge"/>
+  <path d="M1318 786 V850" class="context-edge"/>
+  <rect x="62" y="850" width="440" height="159" rx="18" fill="#1c2839" stroke="#607d9d" stroke-width="1.5"/>
+  <text x="86" y="880" class="tag" fill="#edc984">NEXT · ANALYTICAL QUALITY GATES</text>
+  <text x="86" y="920" class="heading">Grain · keys · totals</text>
+  <text x="86" y="954" class="body">Preserve all eligible sales rows</text>
+  <text x="86" y="986" class="small">Publish unknown / null coverage</text>
+  <path d="M502 930 H580" class="context-edge"/>
+  <rect x="580" y="850" width="958" height="159" rx="18" fill="#1d2a3d" stroke="#6b8fb2" stroke-width="1.5"/>
+  <text x="604" y="880" class="tag" fill="#c6b5fa">PLANNED · AFTER MODELS AND CHECKS</text>
+  <text x="604" y="920" class="heading">SQL → evidence → proposed action</text>
+  <text x="604" y="954" class="body">Metric + period + population + query + materiality + caveats</text>
+  <text x="604" y="986" class="small">Validate the hypothesis before calling the action an improvement.</text>
+<circle cx="68" cy="1046" r="5" fill="#7fe1c5"/>
+  <text x="83" y="1052" class="small">Foundation implemented</text>
+<circle cx="368" cy="1046" r="5" fill="#edc984"/>
+  <text x="383" y="1052" class="small">dbt tests / Silver / Gold / analyses planned</text>
+  <text x="62" y="1084" class="small">P1: profit, discount, product and trends · P2: customers / RFM / basket · Airflow, CDC and dashboard later</text>
+</svg>
